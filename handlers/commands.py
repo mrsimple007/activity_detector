@@ -8,7 +8,7 @@ from datetime import timedelta
 
 from config import (
     supabase, 
-    ADMIN_USER_ID,
+    ADMIN_USER_ID_EU,
     POINTS_FOR_COMMENT_EARLY,
     POINTS_FOR_COMMENT_LATE,
     POINTS_FOR_REACTION_EARLY,
@@ -25,7 +25,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     logger.info(f"🚀 /start command received from user {user_id}")
     
-    if user_id == ADMIN_USER_ID:
+    if user_id == ADMIN_USER_ID_EU:
         logger.info(f"👑 Admin user detected")
         welcome_msg = (
             "🎉 *Welcome, Admin!*\n\n"
