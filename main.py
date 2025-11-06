@@ -5,7 +5,7 @@ from telegram.ext import Application, MessageHandler, MessageReactionHandler, Co
 from dotenv import load_dotenv
 
 from config import (
-    BOT_TOKEN, GROUP_CHAT_ID, ADMIN_USER_ID, 
+    BOT_TOKEN, GROUP_CHAT_ID, ADMIN_USER_ID_EU, 
     EARLY_WINDOW_HOURS, POINTS_FOR_COMMENT_EARLY, 
     POINTS_FOR_COMMENT_LATE, POINTS_FOR_REACTION_EARLY, 
     POINTS_FOR_REACTION_LATE
@@ -27,7 +27,7 @@ def main():
     logger.info("🤖 TELEGRAM ACTIVITY TRACKER BOT STARTING")
     logger.info("=" * 60)
     logger.info(f"📍 Group Chat ID: {GROUP_CHAT_ID}")
-    logger.info(f"👑 Admin User ID: {ADMIN_USER_ID}")
+    logger.info(f"👑 Admin User ID: {ADMIN_USER_ID_EU}")
     logger.info(f"⏰ Early Window: {EARLY_WINDOW_HOURS} hours")
     logger.info(f"💬 Comment Points: {POINTS_FOR_COMMENT_EARLY} (early) / {POINTS_FOR_COMMENT_LATE} (late)")
     logger.info(f"❤️  Reaction Points: {POINTS_FOR_REACTION_EARLY} (early) / {POINTS_FOR_REACTION_LATE} (late)")
