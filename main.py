@@ -10,7 +10,8 @@ from config import (
     POINTS_FOR_COMMENT_LATE, POINTS_FOR_REACTION_EARLY, 
     POINTS_FOR_REACTION_LATE
 )
-from handlers.commands import start_command, show_leaderboard, reset_scores, post_contest, pick_winner
+from telegram.ext import CallbackQueryHandler
+from handlers.commands import start_command, show_leaderboard, reset_scores, post_contest, pick_winner, referral_command, check_subscription_callback
 from handlers.messages import handle_comment
 from handlers.reactions import handle_reaction
 
@@ -42,6 +43,10 @@ def main():
     application.add_handler(CommandHandler("resettop", reset_scores))
     application.add_handler(CommandHandler("contest", post_contest))
     application.add_handler(CommandHandler("pickwinner", pick_winner))
+    application.add_handler(CommandHandler("referral", referral_command))
+    application.add_handler(CallbackQueryHandler(check_subscription_callback, pattern="^check_subscription_referral$"))
+
+
 
     # Message and reaction handlers (award points)
     application.add_handler(MessageHandler(group_filter & filters.TEXT & ~filters.COMMAND, handle_comment))
@@ -49,7 +54,8 @@ def main():
 
     logger.info("✅ All handlers registered")
     logger.info("🚀 Starting polling...")
-    application.run_polling(allowed_updates=[Update.MESSAGE, Update.MESSAGE_REACTION])
+    application.run_polling(allowed_updates=[Update.MESSAGE, Update.MESSAGE_REACTION, Update.CALLBACK_QUERY])
+
 
 
 if __name__ == '__main__':

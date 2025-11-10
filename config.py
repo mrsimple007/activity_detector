@@ -33,5 +33,10 @@ SECOND_COMMENT_POINTS = 14
 THIRD_COMMENT_POINTS = 13
 OTHER_COMMENT_POINTS = 10
 
+
+POINTS_FOR_REFERRAL = 5  # Points for successful referral
+POINTS_FOR_JOINING = 3    # Points for joining via referral
+CHANNEL_USERNAME = "uzbek_europe" 
+
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)

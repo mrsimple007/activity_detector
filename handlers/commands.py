@@ -13,17 +13,125 @@ from config import (
     POINTS_FOR_COMMENT_LATE,
     POINTS_FOR_REACTION_EARLY,
     POINTS_FOR_REACTION_LATE,
-    GROUP_CHAT_ID
+    GROUP_CHAT_ID,
+    POINTS_FOR_REFERRAL,
+    POINTS_FOR_JOINING,
+    CHANNEL_USERNAME
 )
-from utils.helpers import get_leaderboard
+from utils.helpers import get_leaderboard, log_activity
 
 logger = logging.getLogger(__name__)
 
-
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command - welcome message for admin"""
+    """Handle /start command - welcome message and referral tracking"""
     user_id = update.message.from_user.id
+    username = update.message.from_user.username
+    first_name = update.message.from_user.first_name
+    
+    # Get referral payload if exists
+    referral_payload = context.args[0] if context.args else None
+    
     logger.info(f"🚀 /start command received from user {user_id}")
+    if referral_payload:
+        logger.info(f"🔗 Referral payload: {referral_payload}")
+    
+    # Handle referral
+    if referral_payload:
+        from utils.helpers import get_referrer_from_payload, has_user_joined_before, log_referral, check_channel_membership
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        
+        referrer_id = get_referrer_from_payload(referral_payload)
+        
+        if referrer_id and referrer_id != user_id:
+            # Check if user already joined before
+            if has_user_joined_before(user_id):
+                await update.message.reply_text(
+                    "👋 Xush kelibsiz\\!\n\n"
+                    "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
+                    "📊 /leaderboard \\- reytingni ko'rish\n"
+                    "🔗 /referral \\- do'stlarni taklif qilish",
+                    parse_mode=constants.ParseMode.MARKDOWN_V2
+                )
+                return  
+            
+            # Check channel membership
+            is_member = await check_channel_membership(user_id, context)
+            
+            if is_member:
+                # Award points immediately
+                log_referral(referrer_id, user_id, username, first_name)
+                log_activity(referrer_id, None, None, 'referral', POINTS_FOR_REFERRAL, post_id=user_id)
+                log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
+                
+                welcome_text = (
+                    f"🎉 *Xush kelibsiz, {escape_markdown(first_name, version=2)}\\!*\n\n"
+                    f"✅ Siz *{POINTS_FOR_JOINING} ball* oldingiz\\!\n"
+                    f"🎁 Sizni taklif qilgan foydalanuvchi *{POINTS_FOR_REFERRAL} ball* oldi\\!\n\n"
+                    f"🇩🇪 *Yevropalik o'zbek* jamoasiga xush kelibsiz\\!\n\n"
+                    f"📌 *Nima qilishingiz mumkin:*\n"
+                    f"• Guruhdagi postlarga izoh qoldiring\n"
+                    f"• Postlarga reaction bering\n"
+                    f"• Do'stlaringizni taklif qiling\n"
+                    f"• Ballar yig'ing va sovg'alar yutib oling\\!\n\n"
+                    f"💡 *Foydali buyruqlar:*\n"
+                    f"/leaderboard \\- Reytingni ko'rish\n"
+                    f"/referral \\- Do'stlarni taklif qilish\n\n"
+                    f"🚀 Faol bo'ling va ko'proq ball to'plang\\!"
+                )
+                
+                await update.message.reply_text(welcome_text, parse_mode=constants.ParseMode.MARKDOWN_V2)
+                
+                # Notify referrer
+                try:
+                    referrer_name = f"@{username}" if username else first_name
+                    referrer_name_escaped = escape_markdown(referrer_name, version=2)
+                    await context.bot.send_message(
+                        chat_id=referrer_id,
+                        text=f"🎉 *Tabriklaymiz\\!*\n\n{referrer_name_escaped} sizning havolangiz orqali qo'shildi\\!\n\n✨ \\+{POINTS_FOR_REFERRAL} ball hisobingizga qo'shildi\\!",
+                        parse_mode=constants.ParseMode.MARKDOWN_V2
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to notify referrer: {e}")
+                
+                return  
+            else:
+                context.user_data['pending_referral'] = {
+                    'referrer_id': referrer_id,
+                    'user_id': user_id,
+                    'username': username,
+                    'first_name': first_name
+                }
+                
+                # Create inline keyboard with channel link and check button
+                keyboard = [
+                    [InlineKeyboardButton("📢 Kanalga qo'shilish", url=f"https://t.me/{CHANNEL_USERNAME}")],
+                    [InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_subscription_referral")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                join_message = (
+                    f"📢 *Botdan foydalanish uchun kanalga qo'shiling\\!*\n\n"
+                    f"🇩🇪 *Yevropalik o'zbek* \\- Germaniyaga kelganlar va kelmoqchi bo'lganlar uchun:\n\n"
+                    f"✅ O'qish va grant imkoniyatlari\n"
+                    f"✅ Ish topish yo'llari\n"
+                    f"✅ Immigratsiya masalalari\n"
+                    f"✅ Hayot haqida foydali ma'lumotlar\n"
+                    f"✅ Hammasi oddiy va tushunarli tilda\\!\n\n"
+                    f"👇 Quyidagi tugmani bosing va kanalga qo'shiling, keyin obunani tekshiring\\!\n\n"
+                    f"Qo'shilganingizdan keyin *{POINTS_FOR_JOINING} ball* olasiz\\!"
+                )
+                await update.message.reply_text(
+                    join_message, 
+                    parse_mode=constants.ParseMode.MARKDOWN_V2,
+                    reply_markup=reply_markup
+                )
+                return  
+        elif referrer_id == user_id:
+            await update.message.reply_text(
+                "❌ O'z referal havolangizdan foydalana olmaysiz\\!",
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
+            return
     
     if user_id == ADMIN_USER_ID_EU:
         logger.info(f"👑 Admin user detected")
@@ -36,22 +144,31 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"❤️ *Reaction Points:*\n"
             f"  • First 48h: {POINTS_FOR_REACTION_EARLY} points\n"
             f"  • After 48h: {POINTS_FOR_REACTION_LATE} points\n\n"
+            f"🔗 *Referral Points:*\n"
+            f"  • Per referral: {POINTS_FOR_REFERRAL} points\n"
+            f"  • New user bonus: {POINTS_FOR_JOINING} points\n\n"
             "🛠️ *Admin Commands:*\n"
             "/leaderboard \\- View all rankings\n"
             "/contest \\- Post leaderboard for contest\n"
             "/pickwinner \\- Pick random winner from top 10\n"
-            "/resettop \\- Archive and reset scores\n\n"
+            "/resettop \\- Archive and reset scores\n"
+            "/referral \\- Your referral link\n\n"
             "✅ Bot is active and monitoring!"
         )
     else:
-        logger.info(f"👤 Regular user")
+        logger.info(f"👤 Regular user - showing regular welcome")
         welcome_msg = (
-            "👋 Hi! I'm the Activity Tracker Bot.\n\n"
-            "I track engagement in the group and award points for:\n"
-            "• Comments on posts\n"
-            "• Reactions to messages\n\n"
-            "💡 Engage early (first 48 hours) for bonus points!\n\n"
-            "Use /leaderboard to see rankings."
+            f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
+            f"🇩🇪 *Yevropalik o'zbek* guruhi faollik botiga xush kelibsiz\\!\n\n"
+            f"📊 *Ballar qanday ishlab topiladi:*\n"
+            f"• 💬 Postlarga izoh \\(10/3 ball\\)\n"
+            f"• ❤️ Postlarga reaction \\(3/1 ball\\)\n"
+            f"• 👥 Do'stlarni taklif qilish \\({POINTS_FOR_REFERRAL} ball\\)\n\n"
+            f"💡 *Birinchi 48 soatda faol bo'ling* \\- ko'proq ball\\!\n\n"
+            f"🎁 *Foydali buyruqlar:*\n"
+            f"/leaderboard \\- Reytingni ko'rish\n"
+            f"/referral \\- Do'stlarni taklif qilish\n\n"
+            f"🏆 Faol bo'ling va sovg'alar yutib oling\\!"
         )
     
     try:
@@ -61,6 +178,145 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Error sending start message: {e}")
         await update.message.reply_text(welcome_msg.replace('\\', '').replace('*', ''))
 
+
+async def referral_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show user's referral link and stats with detailed explanation"""
+    user_id = update.message.from_user.id
+    bot_username = (await context.bot.get_me()).username
+    
+    from utils.helpers import generate_referral_link
+
+    
+    # Generate referral link
+    referral_link = generate_referral_link(user_id, bot_username)
+    
+    # Get referral count
+    try:
+        result = supabase.table('referrals').select('id').eq('referrer_id', user_id).execute()
+        referral_count = len(result.data)
+    except:
+        referral_count = 0
+    
+    total_earned = referral_count * POINTS_FOR_REFERRAL
+    
+    message = (
+        f"🎁 *DO'STLARINGIZNI TAKLIF QILING\\!*\n\n"
+        f"🇩🇪 *Yevropalik o'zbek* jamoasiga qo'shiling va ballar yutib oling\\!\n\n"
+        f"Germaniyaga kelganlar va kelmoqchi bo'lganlar uchun foydali kanalimizda:\n"
+        f"• 📚 O'qish va grant imkoniyatlari\n"
+        f"• 💼 Ish topish yo'llari\n"
+        f"• 🛂 Immigratsiya masalalari\n"
+        f"• 🏡 Hayot haqida foydali ma'lumotlar\n"
+        f"• 🗣️ Hammasi oddiy va tushunarli tilda\\!\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🔗 *Sizning referal havolangiz:*\n"
+        f"`{referral_link}`\n\n"
+        f"📋 *Qanday ishlaydi?*\n"
+        f"1️⃣ Havolani do'stlaringizga yuboring\n"
+        f"2️⃣ Ular @uzbek\\_europe kanaliga qo'shiladi\n"
+        f"3️⃣ Botni ishga tushiradi\n"
+        f"4️⃣ Ikkalovingiz ham ball olasiz\\!\n\n"
+        f"💰 *Mukofotlar:*\n"
+        f"  • Siz: *{POINTS_FOR_REFERRAL} ball* har bir taklif uchun\n"
+        f"  • Do'stingiz: *{POINTS_FOR_JOINING} ball* qo'shilgani uchun\n\n"
+        f"📊 *Sizning statistikangiz:*\n"
+        f"👥 Taklif qilinganlar: *{referral_count}* kishi\n"
+        f"⭐️ Jami toplangan: *{total_earned}* ball\n\n"
+        f"🏆 Ko'proq do'st taklif qiling va liderlar jadvalida yuqoriga ko'tariling\\!"
+    )
+    
+    await update.message.reply_text(message, parse_mode=constants.ParseMode.MARKDOWN_V2)
+
+async def check_subscription_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle subscription check callback from inline button"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    username = query.from_user.username
+    first_name = query.from_user.first_name
+    
+    from utils.helpers import check_channel_membership, log_referral, has_user_joined_before
+    
+    logger.info(f"🔔 Subscription check callback from user {user_id}")
+    
+    # Check if user already joined/got points before
+    if has_user_joined_before(user_id):
+        logger.info(f"⚠️ User {user_id} already joined before, no points awarded")
+        await query.edit_message_text(
+            "👋 Xush kelibsiz qaytib\\!\n\n"
+            "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
+            "📊 /leaderboard \\- reytingni ko'rish\n"
+            "🔗 /referral \\- do'stlarni taklif qilish",
+            parse_mode=constants.ParseMode.MARKDOWN_V2
+        )
+        return
+    
+    # Check if user is now subscribed
+    is_member = await check_channel_membership(user_id, context)
+    
+    if is_member:
+        logger.info(f"✅ User {user_id} is now a member")
+        
+        # Get pending referral data
+        pending_referral = context.user_data.get('pending_referral')
+        
+        if pending_referral:
+            referrer_id = pending_referral['referrer_id']
+            
+            logger.info(f"💰 Awarding points: Referrer {referrer_id} gets {POINTS_FOR_REFERRAL}, User {user_id} gets {POINTS_FOR_JOINING}")
+            
+            # Log referral first (to mark user as joined)
+            log_referral(referrer_id, user_id, username, first_name)
+            
+            # Award points - CRITICAL: Get the latest username/first_name from the callback
+            log_activity(referrer_id, None, None, 'referral', POINTS_FOR_REFERRAL, post_id=user_id)
+            log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
+            
+            logger.info(f"✅ Points awarded successfully")
+            
+            # Clear pending referral
+            context.user_data.pop('pending_referral', None)
+            
+            success_text = (
+                f"🎉 *Xush kelibsiz, {escape_markdown(first_name, version=2)}\\!*\n\n"
+                f"✅ Siz *{POINTS_FOR_JOINING} ball* oldingiz\\!\n"
+                f"🎁 Sizni taklif qilgan foydalanuvchi *{POINTS_FOR_REFERRAL} ball* oldi\\!\n\n"
+                f"🇩🇪 *Yevropalik o'zbek* jamoasiga xush kelibsiz\\!\n\n"
+                f"📌 *Nima qilishingiz mumkin:*\n"
+                f"• Guruhdagi postlarga izoh qoldiring\n"
+                f"• Postlarga reaction bering\n"
+                f"• Do'stlaringizni taklif qiling\n"
+                f"• Ballar yig'ing va sovg'alar yutib oling\\!\n\n"
+                f"💡 *Foydali buyruqlar:*\n"
+                f"/leaderboard \\- Reytingni ko'rish\n"
+                f"/referral \\- Do'stlarni taklif qilish\n\n"
+                f"🚀 Faol bo'ling va ko'proq ball to'plang\\!"
+            )
+            
+            await query.edit_message_text(success_text, parse_mode=constants.ParseMode.MARKDOWN_V2)
+            
+            # Notify referrer
+            try:
+                referrer_name = f"@{username}" if username else first_name
+                referrer_name_escaped = escape_markdown(referrer_name, version=2)
+                await context.bot.send_message(
+                    chat_id=referrer_id,
+                    text=f"🎉 *Tabriklaymiz\\!*\n\n{referrer_name_escaped} sizning havolangiz orqali qo'shildi\\!\n\n✨ \\+{POINTS_FOR_REFERRAL} ball hisobingizga qo'shildi\\!",
+                    parse_mode=constants.ParseMode.MARKDOWN_V2
+                )
+                logger.info(f"✅ Referrer {referrer_id} notified")
+            except Exception as e:
+                logger.error(f"❌ Failed to notify referrer: {e}")
+        else:
+            logger.warning(f"⚠️ No pending referral found for user {user_id}")
+            await query.edit_message_text(
+                "✅ Siz kanalga qo'shilgansiz\\! /start ni bosing\\.",
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
+    else:
+        logger.warning(f"❌ User {user_id} is still not a member")
+        await query.answer("❌ Siz hali kanalga qo'shilmagansiz! Iltimos, avval kanalga qo'shiling.", show_alert=True)
 
 async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Display the leaderboard with user's position and date range"""
@@ -129,7 +385,35 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_id_display = user_data.get('user_id')
             score = user_data.get('total_score')
             
-            display_name_raw = f"@{username}" if username else (first_name or f"User {user_id_display}")
+            # Improved fallback logic - try to get actual name from Telegram if missing
+            if not username and not first_name:
+                try:
+                    # Try to fetch user info from Telegram
+                    chat_member = await context.bot.get_chat(user_id_display)
+                    first_name = chat_member.first_name
+                    username = chat_member.username
+                    logger.info(f"🔄 Fetched missing user info for {user_id_display}: {first_name} (@{username})")
+                    
+                    # Update database with fetched info
+                    try:
+                        supabase.table('activity_log').update({
+                            'username': username,
+                            'first_name': first_name
+                        }).eq('user_id', user_id_display).execute()
+                        logger.info(f"✅ Updated database with user info for {user_id_display}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not update database: {e}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not fetch user info for {user_id_display}: {e}")
+            
+            # Build display name with better fallback
+            if username:
+                display_name_raw = f"@{username}"
+            elif first_name:
+                display_name_raw = first_name
+            else:
+                display_name_raw = f"Foydalanuvchi #{user_id_display}"
+            
             display_name_escaped = escape_markdown(display_name_raw, version=2)
             
             # Add medals for top 3
@@ -168,6 +452,7 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(full_leaderboard.replace('\\', ''))
 
 async def post_contest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from config import ADMIN_USER_ID
     """Post contest leaderboard to the group (admin only)"""
     user_id = update.message.from_user.id
     logger.info(f"🎯 /contest command received from user {user_id}")
@@ -239,6 +524,7 @@ async def post_contest(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def pick_winner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from config import ADMIN_USER_ID
     """Pick a random winner from top 10 users (admin only)"""
     user_id = update.message.from_user.id
     logger.info(f"🎲 /pickwinner command received from user {user_id}")
@@ -290,6 +576,7 @@ async def pick_winner(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def reset_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from config import ADMIN_USER_ID
     """Reset scores (admin only) - archives to a separate table"""
     user_id = update.message.from_user.id
     logger.info(f"🔄 /resettop command received from user {user_id}")
