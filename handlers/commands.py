@@ -9,6 +9,8 @@ from datetime import timedelta
 from config import (
     supabase, 
     ADMIN_USER_ID_EU,
+    ADMIN_USER_ID_EU_2,
+    ADMIN_USER_ID,
     POINTS_FOR_COMMENT_EARLY,
     POINTS_FOR_COMMENT_LATE,
     POINTS_FOR_REACTION_EARLY,
@@ -21,6 +23,8 @@ from config import (
 from utils.helpers import get_leaderboard, log_activity
 
 logger = logging.getLogger(__name__)
+
+ADMIN_USER_ID= ADMIN_USER_ID_EU
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command - welcome message and referral tracking"""
@@ -322,9 +326,6 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Display the leaderboard with user's position and date range"""
     user_id = update.message.from_user.id
     logger.info(f"🏆 /leaderboard command received from user {user_id}")
-    
-    from config import ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2
-    
     time_periods = [
         ('Last 7 Days', 7),
         ('Last 14 Days', 14),
@@ -457,12 +458,10 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(full_leaderboard.replace('\\', ''))
 
 async def post_contest(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from config import ADMIN_USER_ID
-    """Post contest leaderboard to the group (admin only)"""
     user_id = update.message.from_user.id
     logger.info(f"🎯 /contest command received from user {user_id}")
     
-    if user_id != ADMIN_USER_ID:
+    if user_id != ADMIN_USER_ID_EU:
         logger.warning(f"🚫 Unauthorized contest post attempt by user {user_id}")
         await update.message.reply_text("You are not authorized to use this command.")
         return
@@ -529,12 +528,10 @@ async def post_contest(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def pick_winner(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from config import ADMIN_USER_ID
-    """Pick a random winner from top 10 users (admin only)"""
     user_id = update.message.from_user.id
     logger.info(f"🎲 /pickwinner command received from user {user_id}")
     
-    if user_id != ADMIN_USER_ID:
+    if user_id != ADMIN_USER_ID_EU:
         logger.warning(f"🚫 Unauthorized winner pick attempt by user {user_id}")
         await update.message.reply_text("You are not authorized to use this command.")
         return
@@ -581,12 +578,10 @@ async def pick_winner(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def reset_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from config import ADMIN_USER_ID
-    """Reset scores (admin only) - archives to a separate table"""
     user_id = update.message.from_user.id
     logger.info(f"🔄 /resettop command received from user {user_id}")
     
-    if user_id != ADMIN_USER_ID:
+    if user_id != ADMIN_USER_ID_EU:
         logger.warning(f"🚫 Unauthorized reset attempt by user {user_id}")
         await update.message.reply_text("You are not authorized to use this command.")
         return
