@@ -11,9 +11,13 @@ GROUP_CHAT_ID = int(os.environ.get("GROUP_CHAT_ID_EU", "0"))
 
 # GROUP_CHAT_ID = int(os.environ.get("GROUP_CHAT_ID", "0"))
 # BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_SIMPLELEARNINGUZ")
+BOT_TOKEN_WT = os.environ.get("TELEGRAM_BOT_TOKEN_WT")
 
-# ADMIN_USER_ID = int(os.environ.get("ADMIN_USER_ID", "0"))
+PRIVATE_CHANNEL_LINK = os.environ.get("PRIVATE_CHANNEL_LINK", "")
+
+ADMIN_USER_ID = int(os.environ.get("ADMIN_USER_ID", "0"))
 ADMIN_USER_ID_EU = int(os.environ.get("ADMIN_USER_ID_EU", "0"))
+ADMIN_USER_ID_EU_2= int(os.environ.get("ADMIN_USER_ID_EU_2", "0"))
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
@@ -37,6 +41,7 @@ OTHER_COMMENT_POINTS = 10
 POINTS_FOR_REFERRAL = 5  # Points for successful referral
 POINTS_FOR_JOINING = 3    # Points for joining via referral
 CHANNEL_USERNAME = "uzbek_europe" 
+# CHANNEL_USERNAME = "muslimbek_01" 
 
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)

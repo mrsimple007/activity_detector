@@ -323,6 +323,8 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     logger.info(f"🏆 /leaderboard command received from user {user_id}")
     
+    from config import ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2
+    
     time_periods = [
         ('Last 7 Days', 7),
         ('Last 14 Days', 14),
@@ -341,36 +343,39 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             date_range = "Barcha vaqt"
         
-        # Get ALL users to find requesting user's position
-        all_users = get_leaderboard(days=days, limit=None)  # Get all users
+        # Get ALL users EXCLUDING admins
+        all_users = get_leaderboard(days=days, limit=None)
+        # Filter out admin users
+        all_users = [u for u in all_users if u.get('user_id') not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]]
         top_users = all_users[:20]  # Top 20 for display
 
         if not all_users:
             logger.warning(f"⚠️  No activity for period: {title}")
             continue
 
-        # Find requesting user's position and data
+        # Find requesting user's position and data (only if not admin)
         user_position = None
         user_score = 0
         user_last_activity = None
         
-        for idx, user_data in enumerate(all_users):
-            if user_data.get('user_id') == user_id:
-                user_position = idx + 1
-                user_score = user_data.get('total_score', 0)
-                # Get last activity date for this user
-                try:
-                    query = supabase.table('activity_log').select('timestamp').eq('user_id', user_id)
-                    if days:
-                        cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-                        query = query.gte('timestamp', cutoff_date)
-                    result = query.order('timestamp', desc=True).limit(1).execute()
-                    if result.data:
-                        timestamp_str = result.data[0]['timestamp']
-                        user_last_activity = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                except Exception as e:
-                    logger.error(f"Error getting user's last activity: {e}")
-                break
+        if user_id not in [ADMIN_USER_ID, ADMIN_USER_ID_EU]:
+            for idx, user_data in enumerate(all_users):
+                if user_data.get('user_id') == user_id:
+                    user_position = idx + 1
+                    user_score = user_data.get('total_score', 0)
+                    # Get last activity date for this user
+                    try:
+                        query = supabase.table('activity_log').select('timestamp').eq('user_id', user_id)
+                        if days:
+                            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+                            query = query.gte('timestamp', cutoff_date)
+                        result = query.order('timestamp', desc=True).limit(1).execute()
+                        if result.data:
+                            timestamp_str = result.data[0]['timestamp']
+                            user_last_activity = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                    except Exception as e:
+                        logger.error(f"Error getting user's last activity: {e}")
+                    break
 
         title_escaped = escape_markdown(title, version=2)
         date_range_escaped = escape_markdown(date_range, version=2)
