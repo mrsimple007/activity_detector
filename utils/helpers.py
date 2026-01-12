@@ -97,7 +97,7 @@ def log_activity(user_id: int, username: str, first_name: str, activity_type: st
 
         
 def get_leaderboard(days: int = None, limit: int = 20):
-    """Get leaderboard from Supabase"""
+    """Get leaderboard from Supabase - quiz points now included in activity_log"""
     period_desc = f"last {days} days" if days else "all time"
     logger.info(f"🏆 Fetching leaderboard for {period_desc} (limit: {limit if limit else 'all'})")
     
@@ -124,6 +124,7 @@ def get_leaderboard(days: int = None, limit: int = 20):
                 }
             user_scores[user_id]['total_score'] += row['points']
         
+        # No more separate quiz point calculation - it's already in activity_log!
         logger.info(f"👥 Aggregated scores for {len(user_scores)} unique users")
         
         # Sort by score
@@ -191,4 +192,49 @@ async def check_channel_membership(user_id: int, context: ContextTypes.DEFAULT_T
         return is_member
     except Exception as e:
         logger.error(f"❌ Error checking channel membership: {e}")
+        return False
+    
+
+def get_referrer_referral_count(referrer_id: int) -> int:
+    """Get count of successful referrals for a user"""
+    try:
+        result = supabase.table('referrals').select('id').eq('referrer_id', referrer_id).execute()
+        count = len(result.data)
+        logger.info(f"📊 Referrer {referrer_id} has {count} referrals")
+        return count
+    except Exception as e:
+        logger.error(f"❌ Error getting referral count: {e}")
+        return 0
+
+
+def save_user_to_db(user_id: int, username: str, first_name: str, last_name: str = None):
+    """Save or update user in uzbek_europe_users table"""
+    logger.info(f"💾 Saving user {user_id} to uzbek_europe_users table")
+    
+    try:
+        timestamp = datetime.now(timezone.utc).isoformat()
+        
+        # Check if user exists
+        existing = supabase.table('uzbek_europe_users').select('id').eq('user_id', user_id).execute()
+        
+        user_data = {
+            'user_id': user_id,
+            'username': username,
+            'first_name': first_name,
+            'last_name': last_name,
+            'updated_at': timestamp
+        }
+        
+        if existing.data:
+            # Update existing user
+            logger.info(f"🔄 Updating existing user {user_id}")
+            supabase.table('uzbek_europe_users').update(user_data).eq('user_id', user_id).execute()
+        else:
+            user_data['created_at'] = timestamp
+            supabase.table('uzbek_europe_users').insert(user_data).execute()
+        
+        logger.info(f"✅ User {user_id} saved successfully to uzbek_europe_users")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Error saving user to database: {e}")
         return False
