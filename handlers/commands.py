@@ -25,7 +25,9 @@ from config import (
     OTHER_COMMENT_POINTS,
     POINTS_FOR_BOOSTING,
     MAX_REFERRALS_FOR_POINTS,
-    POINTS_FOR_QUIZ
+    POINTS_FOR_QUIZ,
+    CHANNEL_ID_MUSLIMBEK,
+    CHANNEL_ID_UZBEK_EUROPE
 )
 from utils.helpers import get_leaderboard, log_activity, generate_referral_link, save_user_to_db
 
@@ -74,73 +76,6 @@ def get_leaderboard_keyboard():
         [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
     ]
     return InlineKeyboardMarkup(keyboard)
-
-
-def get_user_stats(user_id: int):
-    """Get comprehensive user statistics"""
-    try:
-        # Get all user activities from activity_log
-        result = supabase.table('activity_log').select('*').eq('user_id', user_id).execute()
-        
-        total_points = 0
-        comment_points = 0
-        reaction_points = 0
-        referral_points = 0
-        quiz_points = 0  # Now tracked from activity_log
-        username = None
-        first_name = None
-        
-        for row in result.data:
-            points = row.get('points', 0)
-            total_points += points
-            
-            activity_type = row.get('activity_type')
-            if activity_type == 'comment':
-                comment_points += points
-            elif activity_type == 'reaction':
-                reaction_points += points
-            elif activity_type == 'referral':
-                referral_points += points
-            elif activity_type == 'quiz':  # NEW: Track quiz points
-                quiz_points += points
-            
-            if not username:
-                username = row.get('username')
-            if not first_name:
-                first_name = row.get('first_name')
-        
-        # No more separate quiz count calculation!
-        quiz_count = sum(1 for row in result.data if row.get('activity_type') == 'quiz')
-        
-        # Get referral count
-        referral_result = supabase.table('referrals').select('id').eq('referrer_id', user_id).execute()
-        referral_count = len(referral_result.data)
-        
-        # Get user position
-        all_users = get_leaderboard(days=None, limit=None)
-        all_users = [u for u in all_users if u.get('user_id') not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]]
-        
-        user_position = None
-        for idx, user_data in enumerate(all_users):
-            if user_data.get('user_id') == user_id:
-                user_position = idx + 1
-                break
-        
-        return {
-            'username': username,
-            'first_name': first_name,
-            'total_points': total_points,
-            'comment_points': comment_points,
-            'reaction_points': reaction_points,
-            'referral_points': referral_points,
-            'quiz_points': quiz_points,
-            'quiz_count': quiz_count,
-            'referral_count': referral_count,
-            'position': user_position if user_position else len(all_users) + 1
-        }
-    except Exception as e:
-        logger.error(f"Error getting user stats: {e}")
-        return None
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command - welcome message and referral tracking"""
@@ -320,12 +255,20 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         if callback_data == "menu_main":
             # Show main menu
-            text = (
-                f"👋 *Bosh menyu*\n\n"
-                f"Kerakli bo'limni tanlang:"
+            # Regular welcome message for subscribed users without referral
+            welcome_msg = (
+                f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
+                f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
+                f"Endilikda @Uzbek\\_Europe va @Muslimbek\\_01 tomonidan olib boriladi\\.\n\n"
+                f"🎯 *Qanday ishtirok etish:*\n"
+                f"• @SimpleQuizzer\\_bot orqali quizlar yarating\n"
+                f"• Kanallarimizda aktiv bo'ling \\(komment, reaksiya, ulashish\\)\n"
+                f"• Quizlarni yeching va ball to'plang\n"
+                f"• Do'stlaringizni taklif qiling\n\n"
+                f"Quyidagi menyudan foydalaning:"
             )
             await query.edit_message_text(
-                text,
+                welcome_msg,
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=get_main_menu_keyboard()
             )
@@ -350,8 +293,8 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"  • Har bir quiz: {POINTS_FOR_QUIZ} ball\n"
                 f"  • @SimpleQuizzer\\_bot orqali quiz yarating\\!\n\n"
                 f"👥 *Referal:*\n"
-                f"  • Har bir do'st: {POINTS_FOR_REFERRAL} ball\n"
-                f"  • Do'stingiz: {POINTS_FOR_JOINING} ball\n\n"
+                f"  • Har bir do'stingiz uchun siz: {POINTS_FOR_REFERRAL} ball\n"
+                f"  • Do'stingiz qo'shilgani uchun unga: {POINTS_FOR_JOINING} ball\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"🔗 *Sizning referal havolangiz:*\n"
                 f"`{referral_link}`\n\n"
@@ -362,31 +305,48 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=get_participate_keyboard()
             )
-        
+
+
         elif callback_data == "menu_profile":
-            # Show user profile
+            from utils.helpers import get_user_stats
+            # Show user profile with per-channel breakdown
             stats = get_user_stats(user_id)
             
             if stats:
                 display_name = f"@{stats['username']}" if stats['username'] else (stats['first_name'] or "Foydalanuvchi")
                 display_name_escaped = escape_markdown(display_name, version=2)
                 
+                uzbek_europe = stats['uzbek_europe']
+                muslimbek = stats['muslimbek']
+                
+                uzbek_channel = escape_markdown("@uzbek_europe", version=2)
+                muslimbek_channel = escape_markdown("@muslimbek_01", version=2)
+
+
                 text = (
                     f"📊 *Sizning ko'rsatkichlaringiz:*\n\n"
                     f"👤 Nickname: {display_name_escaped}\n"
                     f"🎯 Jami ballar: *{stats['total_points']}*\n\n"
-                    f"📝 Izoh ballari: {stats['comment_points']}\n"
-                    f"❤️ Reaksiya ballari: {stats['reaction_points']}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🇩🇪 *Uzbek Europe \\({uzbek_channel}\\) kanalida:*\n"
+                    f"📝 Komment ballari: {uzbek_europe['comment_points']}\n"
+                    f"❤️ Reaksiya ballari: {uzbek_europe['reaction_points']}\n"
+                    f"🚀 Boost ballari: {uzbek_europe['boost_points']}\n\n"
+                    f"📚 *Muslimbek \\({muslimbek_channel}\\) kanalida:*\n"
+                    f"📝 Komment ballari: {muslimbek['comment_points']}\n"
+                    f"❤️ Reaksiya ballari: {muslimbek['reaction_points']}\n"
+                    f"🚀 Boost ballari: {muslimbek['boost_points']}\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🎯 Quiz ballari: {stats['quiz_points']}\n"
                     f"👥 Referal ballari: {stats['referral_points']}\n"
-                    f"🎯 Quiz ballari: {stats['quiz_points']} \\({stats['quiz_count']} ta\\)\n"
-                    f"🔗 Referal takliflar: {stats['referral_count']} ta\n\n"
+                    f"🔗 Referal takliflar \\- qo'shilganingiz uchun ball: {stats['referral_count']} ta\n"
                     f"🏆 O'rin: \\#{stats['position']}\n\n"
                 )
                 
                 if stats['position'] > 50:
-                    text += f"📍 TOP 5 ga kirishga harakat qiling\\!"
+                    text += f"📍 TOP 15 ga kirishga harakat qiling\\!"
                 elif stats['position'] > 15:
-                    text += f"📍 TOP 5 ga kirishga harakat qiling\\!"
+                    text += f"📍 TOP 15 ga yaqinlashdingiz\\!"
                 else:
                     text += f"🌟 Ajoyib natija\\! Davom eting\\!"
             else:
@@ -397,26 +357,31 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=get_profile_keyboard(user_id, bot_username)
             )
+
         
-        elif callback_data == "menu_leaderboard":
-            # Show leaderboard
-            top_users = get_leaderboard(days=None, limit=15)
-            top_users = [u for u in top_users if u.get('user_id') not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]][:15]
+        if callback_data == "menu_leaderboard":
+            # Show leaderboard - ONLY LAST 30 DAYS
+            from datetime import datetime, timedelta, timezone
             
-            if not top_users:
+            top_users_30 = get_leaderboard(days=30, limit=16)
+            top_users_30 = [u for u in top_users_30 if u.get('user_id') not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]][:15]
+            
+            # Calculate date range
+            now = datetime.now(timezone.utc)
+            date_30_start = (now - timedelta(days=30)).strftime('%d\\.%m')
+            date_now = now.strftime('%d\\.%m')
+            
+            if not top_users_30:
                 text = "📊 Hali hech qanday faollik qayd etilmagan\\!"
             else:
-                text = "🏆 *TOP 15 Foydalanuvchilar*\n\n"
+                text = f"🏆 *LIDERLAR JADVALI*\n\n"
                 
-                for i, user_data in enumerate(top_users):
-                    username_u = user_data.get('username')
-                    first_name_u = user_data.get('first_name')
-                    last_name_u=user_data.get('last_name')
-                    user_id_u = user_data.get('user_id')
+                # Last 30 days - TOP 15
+                text += f"📅 *Oxirgi 30 kun* \\({date_30_start}\\-{date_now}\\)\n"
+                for i, user_data in enumerate(top_users_30):
+                    first_name_u = user_data.get('first_name', 'User')
                     score = user_data.get('total_score')
-                    
-                    display_name_raw = f"{first_name_u}"
-                    display_name_escaped = escape_markdown(display_name_raw, version=2)
+                    display_name_escaped = escape_markdown(first_name_u, version=2)
                     
                     if i == 0:
                         rank = "🥇"
@@ -434,6 +399,7 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=get_leaderboard_keyboard()
             )
+
         
         elif callback_data == "boost_channel":
             await query.answer(
@@ -551,41 +517,81 @@ async def handle_boost_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def check_boost_status(user_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Check if user has boosted the channels"""
+    from utils.helpers import check_user_boost_status
+    
     try:
-        # Check boost status from database
-        result = supabase.table('activity_log').select('post_id').eq('user_id', user_id).eq('activity_type', 'boost').execute()
-        
-        boosted_channels = [row['post_id'] for row in result.data]
+        # Check actual boost status via Telegram API
+        uzbek_europe_boosted = await check_user_boost_status(user_id, CHANNEL_USERNAME, context)
+        muslimbek_boosted = await check_user_boost_status(user_id, CHANNEL_USERNAME_2, context)
         
         return {
-            'uzbek_europe': 'uzbek_europe' in boosted_channels,
-            'muslimbek_01': 'muslimbek_01' in boosted_channels
+            'uzbek_europe': uzbek_europe_boosted,
+            'muslimbek_01': muslimbek_boosted
         }
     except Exception as e:
         logger.error(f"Error checking boost status: {e}")
         return {'uzbek_europe': False, 'muslimbek_01': False}
 
-
 async def check_boost_status_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle boost status check callback"""
+    """Handle boost status check callback - award points if boosted"""
     query = update.callback_query
     await query.answer()
     
     user_id = query.from_user.id
+    username = query.from_user.username
+    first_name = query.from_user.first_name
     
     try:
-        # Get boost info from Telegram API (if available)
-        # Note: Telegram bot API doesn't directly expose boost info
-        # You'll need to manually verify or ask user to confirm
+        from utils.helpers import has_user_boosted_channel
         
-        await query.answer(
-            "✅ Boost tekshirilmoqda...\n\n"
-            "Agar siz kanallarni boost qilgan bo'lsangiz, ballaringiz tez orada hisobingizga qo'shiladi!",
-            show_alert=True
-        )
+        # Check actual boost status
+        boost_status = await check_boost_status(user_id, context)
         
-        # Redirect back to boost menu
-        await handle_boost_callback(update, context)
+        points_awarded = 0
+        messages = []
+        
+        # Check Uzbek Europe
+        if boost_status['uzbek_europe']:
+            if not has_user_boosted_channel(user_id, CHANNEL_ID_UZBEK_EUROPE):
+                log_activity(user_id, username, first_name, 'boost', POINTS_FOR_BOOSTING, post_id=None, channel_id=CHANNEL_ID_UZBEK_EUROPE)
+                points_awarded += POINTS_FOR_BOOSTING
+                messages.append(f"🎉 Uzbek Europe uchun +{POINTS_FOR_BOOSTING} ball!")
+                logger.info(f"✅ Awarded {POINTS_FOR_BOOSTING} points to user {user_id} for boosting Uzbek Europe")
+            else:
+                messages.append("✅ Uzbek Europe uchun ball allaqachon berilgan")
+        
+        # Check Muslimbek
+        if boost_status['muslimbek_01']:
+            if not has_user_boosted_channel(user_id, CHANNEL_ID_MUSLIMBEK):
+                log_activity(user_id, username, first_name, 'boost', POINTS_FOR_BOOSTING, post_id=None, channel_id=CHANNEL_ID_MUSLIMBEK)
+                points_awarded += POINTS_FOR_BOOSTING
+                messages.append(f"🎉 Muslimbek uchun +{POINTS_FOR_BOOSTING} ball!")
+                logger.info(f"✅ Awarded {POINTS_FOR_BOOSTING} points to user {user_id} for boosting Muslimbek")
+            else:
+                messages.append("✅ Muslimbek uchun ball allaqachon berilgan")
+        
+        # Send separate notification message
+        if points_awarded > 0:
+            notification = f"🎉 *Tabriklaymiz\\!*\n\n" + "\n".join([escape_markdown(msg, version=2) for msg in messages]) + f"\n\n💰 Jami: \\+{points_awarded} ball"
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=notification,
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
+        elif not boost_status['uzbek_europe'] and not boost_status['muslimbek_01']:
+            notification = "❌ Siz hali hech qanday kanalni boost qilmagansiz\\!\n\nIltimos, kanallarni boost qiling va qayta tekshiring\\."
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=notification,
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
+        else:
+            notification = "✅ Barcha boostlar uchun ball allaqachon berilgan\\!"
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=notification,
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
         
     except Exception as e:
         logger.error(f"Error checking boost status: {e}")
@@ -753,94 +759,81 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
     logger.info(f"✅ Subscription check completed for user {user_id}")
 
 async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Display the leaderboard with user's position"""
+    """Display the leaderboard with user's position - ONLY LAST 30 DAYS"""
     user_id = update.message.from_user.id
     logger.info(f"🏆 /leaderboard command received from user {user_id}")
     
-    time_periods = [
-        ('Oxirgi 7 kun', 7),
-        ('Oxirgi 14 kun', 14),
-    ]
-
-    full_leaderboard = ""
+    # ONLY show last 30 days
+    days = 30
     
-    for title, days in time_periods:
-        logger.info(f"📊 Generating leaderboard for: {title}")
-        
-        # Calculate date range
-        end_date = datetime.now(timezone.utc)
-        if days:
-            start_date = end_date - timedelta(days=days)
-            date_range = f"{start_date.strftime('%d %b')} dan {end_date.strftime('%d %b')} gacha"
-        else:
-            date_range = "Barcha vaqt"
-        
-        # Get ALL users EXCLUDING admins
-        all_users = get_leaderboard(days=days, limit=None)
-        all_users = [u for u in all_users if u.get('user_id') not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]]
-        top_users = all_users[:20]
+    logger.info(f"📊 Generating leaderboard for last {days} days")
+    
+    # Calculate date range
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=days)
 
-        if not all_users:
-            logger.warning(f"⚠️ No activity for period: {title}")
-            continue
+    date_range = (
+        f"{start_date.strftime('%d.%m')} dan "
+        f"{end_date.strftime('%d.%m')} gacha"
+    )
 
-        # Find requesting user's position
-        user_position = None
-        user_score = 0
-        
-        if user_id not in [ADMIN_USER_ID, ADMIN_USER_ID_EU]:
-            for idx, user_data in enumerate(all_users):
-                if user_data.get('user_id') == user_id:
-                    user_position = idx + 1
-                    user_score = user_data.get('total_score', 0)
-                    break
 
-        title_escaped = escape_markdown(title, version=2)
-        date_range_escaped = escape_markdown(date_range, version=2)
-        
-        leaderboard_text = f"📊 *Eng faol foydalanuvchilar \\({title_escaped}\\)*\n"
-        leaderboard_text += f"_{date_range_escaped}_\n\n"
+    # Get ALL users EXCLUDING admins
+    all_users = get_leaderboard(days=days, limit=None)
+    all_users = [u for u in all_users if u.get('user_id') not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]]
+    top_users = all_users[:20]
 
-        for i, user_data in enumerate(top_users):
-            username = user_data.get('username')
-            first_name = user_data.get('first_name')
-            user_id_display = user_data.get('user_id')
-            score = user_data.get('total_score')
-            
-            display_name_raw = f"@{username}" if username else (first_name or f"User {user_id_display}")
-            display_name_escaped = escape_markdown(display_name_raw, version=2)
-            
-            if i == 0:
-                rank = "🥇"
-            elif i == 1:
-                rank = "🥈"
-            elif i == 2:
-                rank = "🥉"
-            else:
-                rank = f"{i + 1}\\."
-            
-            leaderboard_text += f"{rank} {display_name_escaped} \\- {score} pts\n"
-        
-        # Show user's position
-        if user_position:
-            leaderboard_text += f"\n🎯 *Sizning pozitsiyangiz:* \\#{user_position} \\- {user_score} ball"
-        else:
-            leaderboard_text += f"\n💡 _Siz hali faollik ko'rsatmagansiz\\._"
-        
-        full_leaderboard += leaderboard_text + "\n\n"
-
-    if not full_leaderboard:
-        logger.warning(f"⚠️ No activity recorded at all")
-        await update.message.reply_text("Hali hech qanday faollik qayd etilmagan!")
+    if not all_users:
+        logger.warning(f"⚠️ No activity for last {days} days")
+        await update.message.reply_text("Oxirgi 30 kunda hech qanday faollik qayd etilmagan!")
         return
 
+    # Find requesting user's position
+    user_position = None
+    user_score = 0
+    
+    if user_id not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]:
+        for idx, user_data in enumerate(all_users):
+            if user_data.get('user_id') == user_id:
+                user_position = idx + 1
+                user_score = user_data.get('total_score', 0)
+                break
+    
+    leaderboard_text = f"📊 *Eng faol foydalanuvchilar \\(Oxirgi 30 kun\\)*\n"
+    leaderboard_text += f"_{date_range}_\n\n"
+
+    for i, user_data in enumerate(top_users):
+        username = user_data.get('username')
+        first_name = user_data.get('first_name')
+        user_id_display = user_data.get('user_id')
+        score = user_data.get('total_score')
+        
+        display_name_raw = f"@{username}" if username else (first_name or f"User {user_id_display}")
+        display_name_escaped = escape_markdown(display_name_raw, version=2)
+        
+        if i == 0:
+            rank = "🥇"
+        elif i == 1:
+            rank = "🥈"
+        elif i == 2:
+            rank = "🥉"
+        else:
+            rank = f"{i + 1}\\."
+        
+        leaderboard_text += f"{rank} {display_name_escaped} \\- {score} ball\n"
+    
+    # Show user's position
+    if user_position:
+        leaderboard_text += f"\n🎯 *Sizning pozitsiyangiz:* \\#{user_position} \\- {user_score} ball"
+    else:
+        leaderboard_text += f"\n💡 _Siz oxirgi 30 kunda faollik ko'rsatmagansiz\\._"
+
     try:
-        await update.message.reply_text(full_leaderboard.strip(), parse_mode=constants.ParseMode.MARKDOWN_V2)
+        await update.message.reply_text(leaderboard_text, parse_mode=constants.ParseMode.MARKDOWN_V2)
         logger.info(f"✅ Leaderboard sent successfully")
     except Exception as e:
         logger.error(f"❌ Failed to send leaderboard: {e}")
-        await update.message.reply_text(full_leaderboard.replace('\\', ''))
-
+        await update.message.reply_text(leaderboard_text.replace('\\', ''))
 
 async def post_contest(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id

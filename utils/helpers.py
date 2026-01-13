@@ -56,19 +56,19 @@ def has_user_commented_on_post(user_id: int, post_id: int) -> bool:
         return False
 
 
-def log_activity(user_id: int, username: str, first_name: str, activity_type: str, points: int, post_id: int = None, post_timestamp: datetime = None):
-    """Log user activity to Supabase"""
+def log_activity(user_id: int, username: str, first_name: str, activity_type: str, 
+                 points: int, post_id: int = None, post_timestamp: datetime = None, 
+                 channel_id: str = None):
+    """Log user activity to Supabase with channel tracking"""
     display_name = f"@{username}" if username else (first_name or f"User {user_id}")
     logger.info(f"📝 Logging activity for user: {display_name} (ID: {user_id})")
-    logger.info(f"   Type: {activity_type}, Points: {points}, Post ID: {post_id}")
+    logger.info(f"   Type: {activity_type}, Points: {points}, Post ID: {post_id}, Channel: {channel_id}")
     
     try:
         timestamp = datetime.now(timezone.utc).isoformat()
         
-        # For referral activities, ensure we fetch the referrer's info from database
         if activity_type == 'referral' and (not username or not first_name):
             try:
-                # Try to get user info from existing activity_log
                 existing_user = supabase.table('activity_log').select('username, first_name').eq('user_id', user_id).limit(1).execute()
                 if existing_user.data:
                     username = existing_user.data[0].get('username') or username
@@ -84,8 +84,9 @@ def log_activity(user_id: int, username: str, first_name: str, activity_type: st
             'activity_type': activity_type,
             'points': points,
             'timestamp': timestamp,
-            'post_id': post_id,
-            'post_timestamp': post_timestamp.isoformat() if post_timestamp else None
+            'post_id': post_id,  # This should be None for boost activities
+            'post_timestamp': post_timestamp.isoformat() if post_timestamp else None,
+            'channel_id': channel_id
         }
         
         logger.info(f"💾 Inserting into Supabase: {data}")
@@ -237,4 +238,132 @@ def save_user_to_db(user_id: int, username: str, first_name: str, last_name: str
         return True
     except Exception as e:
         logger.error(f"❌ Error saving user to database: {e}")
+        return False
+    
+
+
+def get_user_stats(user_id: int):
+    """Get comprehensive user statistics with per-channel breakdown"""
+    try:
+        from config import CHANNEL_ID_UZBEK_EUROPE, CHANNEL_ID_MUSLIMBEK, ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2
+        
+        result = supabase.table('activity_log').select('*').eq('user_id', user_id).execute()
+        
+        total_points = 0
+        username = None
+        first_name = None
+        
+        # Per-channel statistics
+        stats_by_channel = {
+            CHANNEL_ID_UZBEK_EUROPE: {
+                'comment_points': 0,
+                'reaction_points': 0,
+                'boost_points': 0,
+            },
+            CHANNEL_ID_MUSLIMBEK: {
+                'comment_points': 0,
+                'reaction_points': 0,
+                'boost_points': 0,
+            }
+        }
+        
+        # Global statistics (not channel-specific)
+        referral_points = 0
+        quiz_points = 0
+        
+        for row in result.data:
+            points = row.get('points', 0)
+            total_points += points
+            
+            activity_type = row.get('activity_type')
+            channel_id = row.get('channel_id')
+            
+            # Track username and first_name
+            if not username:
+                username = row.get('username')
+            if not first_name:
+                first_name = row.get('first_name')
+            
+            # Global activities (not channel-specific)
+            if activity_type == 'referral':
+                referral_points += points
+            elif activity_type == 'quiz':
+                quiz_points += points
+            elif activity_type == 'joining':
+                referral_points += points  # Joining points count as referral category
+            
+            # Channel-specific activities
+            if channel_id in stats_by_channel:
+                if activity_type == 'comment':
+                    stats_by_channel[channel_id]['comment_points'] += points
+                elif activity_type == 'reaction':
+                    stats_by_channel[channel_id]['reaction_points'] += points
+                elif activity_type == 'boost':
+                    stats_by_channel[channel_id]['boost_points'] += points
+        
+        # Get referral count
+        referral_result = supabase.table('referrals').select('id').eq('referrer_id', user_id).execute()
+        referral_count = len(referral_result.data)
+        
+        # Get user position - USE 30 DAYS for consistency with leaderboard
+        all_users = get_leaderboard(days=30, limit=None)
+        
+        # Filter admins
+        filtered_users = [u for u in all_users if u.get('user_id') not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]]
+        
+        user_position = None
+        for idx, user_data in enumerate(filtered_users):
+            if user_data.get('user_id') == user_id:
+                user_position = idx + 1
+                break
+        
+        # If user not found in leaderboard (no activity in last 30 days), position is last
+        if user_position is None:
+            user_position = len(filtered_users) + 1
+        
+        return {
+            'username': username,
+            'first_name': first_name,
+            'total_points': total_points,
+            'referral_points': referral_points,
+            'quiz_points': quiz_points,
+            'referral_count': referral_count,
+            'position': user_position,
+            'uzbek_europe': stats_by_channel[CHANNEL_ID_UZBEK_EUROPE],
+            'muslimbek': stats_by_channel[CHANNEL_ID_MUSLIMBEK]
+        }
+    except Exception as e:
+        logger.error(f"Error getting user stats: {e}")
+        return None
+    
+
+async def check_user_boost_status(user_id: int, channel_username: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Check if user has boosted a specific channel using Telegram API"""
+    try:
+        channel_id = f"@{channel_username}"
+        
+        # Use getUserChatBoosts API
+        boosts = await context.bot.get_user_chat_boosts(
+            chat_id=channel_id,
+            user_id=user_id
+        )
+        
+        # Check if user has active boosts
+        has_boost = len(boosts.boosts) > 0
+        
+        logger.info(f"✅ Boost check for user {user_id} in @{channel_username}: {has_boost} ({len(boosts.boosts)} boosts)")
+        return has_boost
+        
+    except Exception as e:
+        logger.error(f"❌ Error checking boost status for user {user_id} in @{channel_username}: {e}")
+        return False
+
+
+def has_user_boosted_channel(user_id: int, channel_id: str) -> bool:
+    """Check if user has already received points for boosting this channel"""
+    try:
+        result = supabase.table('activity_log').select('id').eq('user_id', user_id).eq('activity_type', 'boost').eq('channel_id', channel_id).execute()
+        return len(result.data) > 0
+    except Exception as e:
+        logger.error(f"❌ Error checking boost record: {e}")
         return False

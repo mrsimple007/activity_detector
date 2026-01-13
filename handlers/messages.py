@@ -58,11 +58,26 @@ def has_user_commented_on_post(user_id: int, post_id: int) -> bool:
 async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle new comments with position-based scoring"""
     user = update.message.from_user
-    logger.info(f"💬 New comment detected from user {user.id} (@{user.username})")
+    chat_id = update.message.chat_id
+    
+    logger.info(f"💬 New comment detected from user {user.id} (@{user.username}) in chat {chat_id}")
     
     if user.is_bot or user.id in BOT_IDS_TO_REMOVE:
         logger.info(f"🤖 Skipping bot user {user.id}")
         return
+
+    # Determine which channel this is for
+    from config import GROUP_CHAT_ID, GROUP_CHAT_ID_2, CHANNEL_ID_UZBEK_EUROPE, CHANNEL_ID_MUSLIMBEK
+    
+    if chat_id == GROUP_CHAT_ID:
+        channel_id = CHANNEL_ID_UZBEK_EUROPE
+    elif chat_id == GROUP_CHAT_ID_2:
+        channel_id = CHANNEL_ID_MUSLIMBEK
+    else:
+        logger.warning(f"⚠️ Unknown chat_id: {chat_id}, skipping")
+        return
+    
+    logger.info(f"📺 Channel identified: {channel_id}")
 
     # Must be a reply to award points
     if not update.message.reply_to_message:
@@ -97,5 +112,6 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         points = OTHER_COMMENT_POINTS
         logger.info(f"💬 Comment #{position}. Awarding {points} points")
     
-    # Log the activity with awarded points
-    log_activity(user.id, user.username, user.first_name, 'comment', points, post_id, post_timestamp)
+    # Log the activity with channel_id
+    log_activity(user.id, user.username, user.first_name, 'comment', points, 
+                 post_id, post_timestamp, channel_id=channel_id)

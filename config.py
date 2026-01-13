@@ -7,12 +7,19 @@ load_dotenv()
 
 # Environment variables
 BOT_TOKEN = os.environ.get("BOT_TOKEN_ACTIVITY")
-GROUP_CHAT_ID = int(os.environ.get("GROUP_CHAT_ID_EU", "0"))
-
-# GROUP_CHAT_ID = int(os.environ.get("GROUP_CHAT_ID", "0"))
-
 # BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN_SIMPLELEARNINGUZ")
 # BOT_TOKEN_WT = os.environ.get("TELEGRAM_BOT_TOKEN_WT")
+
+GROUP_CHAT_ID = int(os.environ.get("GROUP_CHAT_ID_EU", "0"))
+GROUP_CHAT_ID_2 = int(os.environ.get("GROUP_CHAT_ID_Muslimbek", "0"))
+CHANNEL_USERNAME = "uzbek_europe" 
+CHANNEL_USERNAME_2 = "muslimbek_01" 
+# Channel identifiers for database
+CHANNEL_ID_UZBEK_EUROPE = "uzbek_europe"
+CHANNEL_ID_MUSLIMBEK = "muslimbek_01"
+
+
+
 
 PRIVATE_CHANNEL_LINK = os.environ.get("PRIVATE_CHANNEL_LINK", "")
 
@@ -23,7 +30,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
 # Bot IDs to filter out
-BOT_IDS_TO_REMOVE = [7967610894, 8437026582, 122290051, 999932510]
+BOT_IDS_TO_REMOVE = [7967610894, 8437026582, 122290051]
 
 # Scoring System with time-based multipliers
 POINTS_FOR_COMMENT_EARLY = 10  # Within 48 hours
@@ -43,8 +50,7 @@ POINTS_FOR_BOOSTING=20
 
 POINTS_FOR_REFERRAL = 5  # Points for successful referral
 POINTS_FOR_JOINING = 3    # Points for joining via referral
-CHANNEL_USERNAME = "uzbek_europe" 
-CHANNEL_USERNAME_2 = "muslimbek_01" 
+
 MAX_REFERRALS_FOR_POINTS = 200
 POINTS_FOR_QUIZ = 1 
 

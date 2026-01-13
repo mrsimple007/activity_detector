@@ -8,7 +8,7 @@ from config import (
     BOT_TOKEN, GROUP_CHAT_ID, ADMIN_USER_ID_EU, 
     EARLY_WINDOW_HOURS, POINTS_FOR_COMMENT_EARLY, 
     POINTS_FOR_COMMENT_LATE, POINTS_FOR_REACTION_EARLY, 
-    POINTS_FOR_REACTION_LATE
+    POINTS_FOR_REACTION_LATE, GROUP_CHAT_ID_2
 )
 from handlers.commands import (
     start_command, 
@@ -45,17 +45,15 @@ def main():
     logger.info("=" * 60)
     logger.info("🤖 TELEGRAM ACTIVITY TRACKER BOT STARTING")
     logger.info("=" * 60)
-    logger.info(f"📍 Group Chat ID: {GROUP_CHAT_ID}")
-    logger.info(f"👑 Admin User ID: {ADMIN_USER_ID_EU}")
-    logger.info(f"⏰ Early Window: {EARLY_WINDOW_HOURS} hours")
-    logger.info(f"💬 Comment Points: {POINTS_FOR_COMMENT_EARLY} (early) / {POINTS_FOR_COMMENT_LATE} (late)")
-    logger.info(f"❤️ Reaction Points: {POINTS_FOR_REACTION_EARLY} (early) / {POINTS_FOR_REACTION_LATE} (late)")
-    logger.info("=" * 60)
     
     application = Application.builder().token(BOT_TOKEN).build()
-    group_filter = filters.Chat(chat_id=GROUP_CHAT_ID)
+    
+    # Filters for both groups
+    group_filter_1 = filters.Chat(chat_id=GROUP_CHAT_ID)
+    group_filter_2 = filters.Chat(chat_id=GROUP_CHAT_ID_2)
+    combined_group_filter = group_filter_1 | group_filter_2
 
-    # Command handlers
+    # Command handlers (unchanged)
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("leaderboard", show_leaderboard))
     application.add_handler(CommandHandler("resettop", reset_scores))
@@ -63,21 +61,20 @@ def main():
     application.add_handler(CommandHandler("pickwinner", pick_winner))
     application.add_handler(CommandHandler("referral", referral_command))
     
-    # Callback query handlers for menu system
-    application.add_handler(CallbackQueryHandler(check_subscription_callback, pattern="^check_subscription_referral$"))
+    # Callback query handlers (unchanged)
+    application.add_handler(CallbackQueryHandler(check_subscription_callback, pattern="^check_subscription_main$"))
     application.add_handler(CallbackQueryHandler(handle_boost_callback, pattern="^boost_channel$"))
     application.add_handler(CallbackQueryHandler(check_boost_status_callback, pattern="^check_boost_status$"))
     application.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^menu_"))
     application.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^show_referral_info$"))
 
-    # Message and reaction handlers (award points)
-    application.add_handler(MessageHandler(group_filter & filters.TEXT & ~filters.COMMAND, handle_comment))
-    application.add_handler(MessageReactionHandler(handle_reaction, chat_id=GROUP_CHAT_ID))
+    # Message and reaction handlers - now for BOTH groups
+    application.add_handler(MessageHandler(combined_group_filter & filters.TEXT & ~filters.COMMAND, handle_comment))
+    application.add_handler(MessageReactionHandler(handle_reaction, chat_id=[GROUP_CHAT_ID, GROUP_CHAT_ID_2]))
 
-    logger.info("✅ All handlers registered")
+    logger.info("✅ All handlers registered for both groups")
     logger.info("🚀 Starting polling...")
     application.run_polling(allowed_updates=[Update.MESSAGE, Update.MESSAGE_REACTION, Update.CALLBACK_QUERY])
-
 
 if __name__ == '__main__':
     main()
