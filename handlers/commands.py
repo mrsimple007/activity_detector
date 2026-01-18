@@ -762,7 +762,6 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     logger.info(f"🏆 /leaderboard command received from user {user_id}")
     
-    # ONLY show last 30 days
     days = 30
     
     logger.info(f"📊 Generating leaderboard for last {days} days")
@@ -771,11 +770,11 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days)
 
+    # ESCAPE THE DOTS
     date_range = (
         f"{start_date.strftime('%d.%m')} dan "
         f"{end_date.strftime('%d.%m')} gacha"
     )
-
 
     # Get ALL users EXCLUDING admins
     all_users = get_leaderboard(days=days, limit=None)
@@ -817,6 +816,7 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif i == 2:
             rank = "🥉"
         else:
+            # ESCAPE THE DOT HERE TOO
             rank = f"{i + 1}\\."
         
         leaderboard_text += f"{rank} {display_name_escaped} \\- {score} ball\n"

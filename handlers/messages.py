@@ -8,9 +8,12 @@ from config import (
     SECOND_COMMENT_POINTS, 
     THIRD_COMMENT_POINTS, 
     OTHER_COMMENT_POINTS, 
-    supabase
+    supabase,
+    EARLY_WINDOW_HOURS,
+    POINTS_FOR_COMMENT_LATE
 )
-from utils.helpers import log_activity
+from utils.helpers import calculate_points, log_activity, check_rate_limit, check_daily_limit
+
 
 logger = logging.getLogger(__name__)
 
@@ -79,10 +82,23 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"⚠️ Message is not a reply, skipping point award")
         return
 
-    post_id = update.message.reply_to_message.message_id
-    post_timestamp = update.message.reply_to_message.date
+    reply_to_msg = update.message.reply_to_message
+    post_id = reply_to_msg.message_id
+    post_timestamp = reply_to_msg.date
     
     logger.info(f"📌 Comment is reply to post {post_id} from {post_timestamp}")
+
+    # CHECK IF REPLY IS TO A CHANNEL POST
+    # Channel posts are forwarded messages with forward_from_chat
+    if not reply_to_msg.forward_from_chat:
+        logger.info(f"⚠️ Reply is NOT to a channel post (no forward_from_chat), skipping points")
+        return
+    
+    if reply_to_msg.forward_from_chat.type != 'channel':
+        logger.info(f"⚠️ Reply is NOT to a channel post (forward type: {reply_to_msg.forward_from_chat.type}), skipping points")
+        return
+    
+    logger.info(f"✅ Reply is to channel post from: {reply_to_msg.forward_from_chat.title}")
 
     # Check if user has already commented on this post
     if has_user_commented_on_post(user.id, post_id):
@@ -91,19 +107,29 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     position = get_comment_position(post_id)
     
-    # Award points based on position
-    if position == 1:
-        points = FIRST_COMMENT_POINTS
-        logger.info(f"🥇 FIRST COMMENT! Awarding {points} points")
-    elif position == 2:
-        points = SECOND_COMMENT_POINTS
-        logger.info(f"🥈 SECOND COMMENT! Awarding {points} points")
-    elif position == 3:
-        points = THIRD_COMMENT_POINTS
-        logger.info(f"🥉 THIRD COMMENT! Awarding {points} points")
+    # Calculate time since post
+    from datetime import datetime, timezone, timedelta
+    time_since_post = datetime.now(timezone.utc) - post_timestamp
+    hours_since_post = time_since_post.total_seconds() / 3600
+    is_early = hours_since_post <= EARLY_WINDOW_HOURS
+    
+    # Award points based on position AND time
+    if is_early:
+        if position == 1:
+            points = FIRST_COMMENT_POINTS
+            logger.info(f"🥇 FIRST COMMENT (early)! Awarding {points} points")
+        elif position == 2:
+            points = SECOND_COMMENT_POINTS
+            logger.info(f"🥈 SECOND COMMENT (early)! Awarding {points} points")
+        elif position == 3:
+            points = THIRD_COMMENT_POINTS
+            logger.info(f"🥉 THIRD COMMENT (early)! Awarding {points} points")
+        else:
+            points = OTHER_COMMENT_POINTS
+            logger.info(f"💬 Comment #{position} (early). Awarding {points} points")
     else:
-        points = OTHER_COMMENT_POINTS
-        logger.info(f"💬 Comment #{position}. Awarding {points} points")
+        points = POINTS_FOR_COMMENT_LATE
+        logger.info(f"⏰ Comment #{position} (late - {hours_since_post:.1f}h after post). Awarding {points} points")
     
     # Log the activity with channel_id
     log_activity(user.id, user.username, user.first_name, 'comment', points, 

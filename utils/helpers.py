@@ -15,25 +15,25 @@ logger = logging.getLogger(__name__)
 
 def calculate_points(activity_type: str, post_timestamp: datetime) -> int:
     """Calculate points based on activity type and time since post"""
+    from config import (
+        POINTS_FOR_REACTION_EARLY, 
+        POINTS_FOR_REACTION_LATE,
+        EARLY_WINDOW_HOURS
+    )
+    
     logger.info(f"📊 Calculating points for activity_type='{activity_type}'")
     
-    now = datetime.now(timezone.utc)
-    time_diff = now - post_timestamp
-    hours_elapsed = time_diff.total_seconds() / 3600
-    is_early = hours_elapsed < EARLY_WINDOW_HOURS
+    time_since_post = datetime.now(timezone.utc) - post_timestamp
+    hours_since_post = time_since_post.total_seconds() / 3600
+    is_early = hours_since_post <= EARLY_WINDOW_HOURS
     
-    logger.info(f"⏱️  Time since post: {hours_elapsed:.2f} hours (Early: {is_early})")
+    logger.info(f"⏱️  Time since post: {hours_since_post:.2f} hours (Early: {is_early})")
     
-    if activity_type == 'comment':
-        points = POINTS_FOR_COMMENT_EARLY if is_early else POINTS_FOR_COMMENT_LATE
-        logger.info(f"💬 Comment points awarded: {points}")
-        return points
-    elif activity_type == 'reaction':
+    if activity_type == 'reaction':
         points = POINTS_FOR_REACTION_EARLY if is_early else POINTS_FOR_REACTION_LATE
         logger.info(f"❤️  Reaction points awarded: {points}")
         return points
-    
-    logger.warning(f"⚠️  Unknown activity type: {activity_type}, returning 0 points")
+
     return 0
 
 
@@ -365,3 +365,68 @@ def has_user_boosted_channel(user_id: int, channel_id: str) -> bool:
     except Exception as e:
         logger.error(f"❌ Error checking boost record: {e}")
         return False
+
+
+# In utils/helpers.py or config.py
+COOLDOWN_SECONDS = {
+    'comment': 30,      # 30 seconds between comments
+    'reaction': 5,      # 5 seconds between reactions
+}
+
+# In utils/helpers.py
+def check_rate_limit(user_id: int, activity_type: str) -> bool:
+    """Check if user is rate limited for this activity type"""
+    try:
+        cooldown = COOLDOWN_SECONDS.get(activity_type, 0)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=cooldown)
+        
+        result = supabase.table('activity_log')\
+            .select('timestamp')\
+            .eq('user_id', user_id)\
+            .eq('activity_type', activity_type)\
+            .gte('timestamp', cutoff_time.isoformat())\
+            .order('timestamp', desc=True)\
+            .limit(1)\
+            .execute()
+        
+        if result.data:
+            logger.info(f"⏳ User {user_id} is rate limited for {activity_type}")
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error checking rate limit: {e}")
+        return False
+    
+# In config.py
+MAX_DAILY_POINTS = {
+    'comment': 50,      # Max 50 points from comments per day
+    'reaction': 30,     # Max 10 points from reactions per day
+}
+
+# In utils/helpers.py
+def check_daily_limit(user_id: int, activity_type: str, points: int) -> tuple[bool, int]:
+    """Check if user has reached daily limit. Returns (is_limited, adjusted_points)"""
+    try:
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        result = supabase.table('activity_log')\
+            .select('points')\
+            .eq('user_id', user_id)\
+            .eq('activity_type', activity_type)\
+            .gte('timestamp', today_start.isoformat())\
+            .execute()
+        
+        total_today = sum(row['points'] for row in result.data)
+        max_points = MAX_DAILY_POINTS.get(activity_type, 999)
+        
+        if total_today >= max_points:
+            logger.info(f"🚫 User {user_id} reached daily limit for {activity_type}")
+            return True, 0
+        
+        # Adjust points if would exceed limit
+        adjusted_points = min(points, max_points - total_today)
+        return False, adjusted_points
+        
+    except Exception as e:
+        logger.error(f"Error checking daily limit: {e}")
+        return False, points

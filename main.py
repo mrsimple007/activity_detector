@@ -39,7 +39,6 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.WARNING)
 logging.getLogger("telegram.ext.ExtBot").setLevel(logging.WARNING)
 
-
 def main():
     """Start the bot"""
     logger.info("=" * 60)

@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from config import BOT_IDS_TO_REMOVE, supabase
-from utils.helpers import calculate_points, log_activity
+from utils.helpers import calculate_points, log_activity, check_rate_limit, check_daily_limit
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +39,14 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"📺 Channel identified: {channel_id}")
 
     post_id = reaction_update.message_id
-    
-    logger.info(f"📌 Reaction to message {post_id} in chat {chat_id}")
-    
+        
     try:
-        # Try to find the original post timestamp from activity_log
         result = supabase.table('activity_log').select('post_timestamp').eq('post_id', post_id).limit(1).execute()
         
+        if check_rate_limit(user.id, 'reaction'):
+            logger.info(f"⏳ User {user.id} rate limited for reactions")
+            return
+
         if result.data and result.data[0].get('post_timestamp'):
             post_timestamp_str = result.data[0]['post_timestamp']
             post_timestamp = datetime.fromisoformat(post_timestamp_str.replace('Z', '+00:00'))
@@ -57,8 +58,15 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Calculate points based on time since post
         logger.info(f"➕ Awarding points for reaction")
         points = calculate_points('reaction', post_timestamp)
-        log_activity(user.id, user.username, user.first_name, 'reaction', points, 
-                     post_id, post_timestamp, channel_id=channel_id)
+        
+        # ADD DAILY LIMIT CHECK
+        is_limited, adjusted_points = check_daily_limit(user.id, 'reaction', points)
+        if is_limited or adjusted_points == 0:
+            logger.info(f"🚫 User {user.id} reached daily reaction limit")
+            return
+        
+        log_activity(user.id, user.username, user.first_name, 'reaction', 
+                    adjusted_points, post_id, post_timestamp, channel_id=channel_id)
         
     except Exception as e:
         logger.error(f"❌ Error processing reaction: {e}")
