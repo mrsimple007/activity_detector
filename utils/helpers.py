@@ -133,9 +133,7 @@ def get_leaderboard(days: int = None, limit: int = 20):
         
         # Apply limit if specified
         if limit:
-            sorted_users = sorted_users[:limit]
-            logger.info(f"📊 Top {len(sorted_users)} users selected for leaderboard")
-        
+            sorted_users = sorted_users[:limit]        
         return sorted_users
     except Exception as e:
         logger.error(f"❌ Error fetching leaderboard: {e}")

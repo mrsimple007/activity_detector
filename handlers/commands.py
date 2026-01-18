@@ -233,7 +233,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=constants.ParseMode.MARKDOWN_V2,
             reply_markup=get_main_menu_keyboard()
         )
-        logger.info(f"✅ Start message sent successfully")
     except Exception as e:
         logger.error(f"❌ Error sending start message: {e}")
         await update.message.reply_text(welcome_msg.replace('\\', '').replace('*', ''))

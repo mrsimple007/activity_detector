@@ -34,9 +34,7 @@ def get_comment_position(post_id: int) -> int:
 
 
 def has_user_commented_on_post(user_id: int, post_id: int) -> bool:
-    """Check if user has already commented on this specific post"""
     try:
-        logger.info(f"🔍 Checking if user {user_id} already commented on post {post_id}")
         result = supabase.table('activity_log')\
             .select('id')\
             .eq('user_id', user_id)\
@@ -56,12 +54,9 @@ def has_user_commented_on_post(user_id: int, post_id: int) -> bool:
 
 
 async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle new comments with position-based scoring"""
     user = update.message.from_user
     chat_id = update.message.chat_id
-    
-    logger.info(f"💬 New comment detected from user {user.id} (@{user.username}) in chat {chat_id}")
-    
+        
     if user.is_bot or user.id in BOT_IDS_TO_REMOVE:
         logger.info(f"🤖 Skipping bot user {user.id}")
         return
@@ -94,9 +89,7 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"🚫 User {user.id} already commented on post {post_id}, skipping points")
         return
 
-    # Get comment position for this post
     position = get_comment_position(post_id)
-    logger.info(f"📍 Comment position on post {post_id}: #{position}")
     
     # Award points based on position
     if position == 1:
