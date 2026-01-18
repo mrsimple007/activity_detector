@@ -46,6 +46,19 @@ THIRD_COMMENT_POINTS = 13
 OTHER_COMMENT_POINTS = 10
 
 
+COOLDOWN_SECONDS = {
+    'comment': 30,      # 30 seconds between comments
+    'reaction': 5,      # 5 seconds between reactions
+}
+
+
+MAX_DAILY_POINTS = {
+    'comment': 50,      # Max 50 points from comments per day
+    'reaction': 20,     # Max 20 points from reactions per day
+}
+    
+
+
 POINTS_FOR_BOOSTING=20
 
 POINTS_FOR_REFERRAL = 5  # Points for successful referral

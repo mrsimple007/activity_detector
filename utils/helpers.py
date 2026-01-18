@@ -6,7 +6,9 @@ from config import (
     POINTS_FOR_COMMENT_LATE,
     POINTS_FOR_REACTION_EARLY,
     POINTS_FOR_REACTION_LATE,
-    EARLY_WINDOW_HOURS
+    EARLY_WINDOW_HOURS,
+    MAX_DAILY_POINTS,
+    COOLDOWN_SECONDS
 )
 from telegram.ext import ContextTypes
 
@@ -367,11 +369,6 @@ def has_user_boosted_channel(user_id: int, channel_id: str) -> bool:
         return False
 
 
-# In utils/helpers.py or config.py
-COOLDOWN_SECONDS = {
-    'comment': 30,      # 30 seconds between comments
-    'reaction': 5,      # 5 seconds between reactions
-}
 
 # In utils/helpers.py
 def check_rate_limit(user_id: int, activity_type: str) -> bool:
@@ -397,11 +394,6 @@ def check_rate_limit(user_id: int, activity_type: str) -> bool:
         logger.error(f"Error checking rate limit: {e}")
         return False
     
-# In config.py
-MAX_DAILY_POINTS = {
-    'comment': 50,      # Max 50 points from comments per day
-    'reaction': 30,     # Max 10 points from reactions per day
-}
 
 # In utils/helpers.py
 def check_daily_limit(user_id: int, activity_type: str, points: int) -> tuple[bool, int]:
