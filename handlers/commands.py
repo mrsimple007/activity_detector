@@ -140,27 +140,40 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👇 Quyidagi tugmalarni bosing va kanallarimizga qo'shiling, keyin obunani tekshiring\\!"
         )
         
-        if referral_payload:
-            join_message += f"\n\n🎁 Qo'shilganingizdan keyin *{POINTS_FOR_JOINING} ball* olasiz\\!"
-        
+        # Send main subscription message
         await update.message.reply_text(
             join_message, 
             parse_mode=constants.ParseMode.MARKDOWN_V2,
             reply_markup=reply_markup
         )
+        
+        # If coming from referral, send additional bonus message
+        if referral_payload:
+            bonus_message = (
+                f"🎁 *BONUS OLISH UCHUN\\!*\n\n"
+                f"✅ Yuqoridagi *ikkala kanalga* obuna bo'ling\n"
+                f"✅ *'Obunani tekshirish'* tugmasini bosing\n"
+                f"✅ Bonus ballaringiz avtomatik hisobingizga qo'shiladi\\!\n\n"
+                f"⚠️ *Muhim:* Bonus faqat *ikkala kanalga* qo'shilganingizdan keyin beriladi\\!"
+            )
+            
+            await update.message.reply_text(
+                bonus_message,
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
+        
         return
     
     # User is subscribed, continue with normal flow
     logger.info(f"✅ User {user_id} is subscribed to channel")
+    bot_username = (await context.bot.get_me()).username
     
-    # Handle referral if exists
     if referral_payload:
         from utils.helpers import get_referrer_from_payload, has_user_joined_before, log_referral, get_referrer_referral_count
         
         referrer_id = get_referrer_from_payload(referral_payload)
         
         if referrer_id and referrer_id != user_id:
-            # Check if user already joined before
             if has_user_joined_before(user_id):
                 logger.info(f"⚠️ User {user_id} already joined before via referral")
                 await update.message.reply_text(
@@ -176,7 +189,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             referrer_count = get_referrer_referral_count(referrer_id)
             
             if referrer_count >= MAX_REFERRALS_FOR_POINTS:
-                bot_username = (await context.bot.get_me()).username
                 # User still gets points, but referrer doesn't
                 log_referral(referrer_id, user_id, username, first_name)
                 log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
@@ -204,6 +216,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     [InlineKeyboardButton("📤 Ulashish", url=share_url)],
                     [InlineKeyboardButton("🎯 Bosh menyu", callback_data="menu_main")]
                 ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
             else:
                 # Award points to both (referrer hasn't reached limit)
                 log_referral(referrer_id, user_id, username, first_name)
@@ -226,13 +239,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
                 
                 import urllib.parse
+                share_text = f"🎉 Bu mening havolam. Qo'shiling va 400,000 so'm yutib oling!\n\n🇩🇪 Simple Quizzer tanlovida ishtirok eting!\n\n Ro'yxatdan o'tib menga 5 ball, o'zingizga esa 3 ball ishlab oling👇\n {referral_link}"
                 encoded_text = urllib.parse.quote(share_text)
                 share_url = f"https://t.me/share/url?url={urllib.parse.quote(referral_link)}&text={encoded_text}"
 
                 keyboard = [
                     [InlineKeyboardButton("📤 Ulashish", url=share_url)],
-                    [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_profile")]
+                    [InlineKeyboardButton("🎯 Bosh menyu", callback_data="menu_main")]
                 ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 # Notify referrer
                 try:
@@ -247,12 +262,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as e:
                     logger.error(f"❌ Failed to notify referrer: {e}")
             
-                await update.message.reply_text(
-                    welcome_text, 
-                    parse_mode=constants.ParseMode.MARKDOWN_V2,
-                    reply_markup=reply_markup  # Add this
-                )
+            await update.message.reply_text(
+                welcome_text, 
+                parse_mode=constants.ParseMode.MARKDOWN_V2,
+                reply_markup=reply_markup
+            )
             return
+    
         elif referrer_id == user_id:
             await update.message.reply_text(
                 "❌ O'z referal havolangizdan foydalana olmaysiz\\!",
@@ -384,7 +400,7 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🎯 Quiz ballari: {stats['quiz_points']}\n"
                     f"👥 Referal ballari: {stats['referral_points']}\n"
-                    f"🔗 Referal takliflar \\- qo'shilganingiz uchun ball: {stats['referral_count']} ta\n"
+                    f"🔗 Referal takliflar: {stats['referral_count']} ta\n"
                     f"🏆 O'rin: \\#{stats['position']}\n\n"
                 )
                 
@@ -774,14 +790,16 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
         await query.answer("❌ Siz hali kanallarimizga qo'shilmagansiz! Iltimos, avval kanallarimizga qo'shiling.", show_alert=True)
         return
     
-    logger.info(f"✅ User {user_id} is now a member")
+    logger.info(f"✅ User {user_id} is now a member - proceeding with referral logic")
     
-    # Handle referral if exists
+    # Get bot username
+    bot_username = (await context.bot.get_me()).username
+    
+    # Handle referral if exists - ONLY AFTER MEMBERSHIP IS CONFIRMED
     if referral_payload:
         referrer_id = get_referrer_from_payload(referral_payload)
         
         if referrer_id and referrer_id != user_id:
-            # Check if user already joined before
             if has_user_joined_before(user_id):
                 logger.info(f"⚠️ User {user_id} already joined before")
                 await query.edit_message_text(
@@ -799,10 +817,11 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
             
             # Log referral first
             log_referral(referrer_id, user_id, username, first_name)
+            logger.info(f"✅ Referral logged: {referrer_id} -> {user_id}")
             
             if referrer_count >= MAX_REFERRALS_FOR_POINTS:
                 # User gets points, referrer doesn't
-                logger.info(f"⚠️ Referrer {referrer_id} reached limit, no points awarded to referrer")
+                logger.info(f"⚠️ Referrer {referrer_id} reached limit ({referrer_count}/{MAX_REFERRALS_FOR_POINTS}), no points awarded to referrer")
                 log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
                 
                 success_text = (
@@ -872,6 +891,7 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
     # Clear pending user data
     context.user_data.pop('pending_user', None)
     logger.info(f"✅ Subscription check completed for user {user_id}")
+
 
 async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Display the leaderboard with user's position - ONLY LAST 30 DAYS"""
