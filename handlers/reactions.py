@@ -55,14 +55,13 @@ async def handle_reaction(update: Update, context: ContextTypes.DEFAULT_TYPE):
             post_timestamp = reaction_update.date
             logger.info(f"⚠️  No post timestamp found, using reaction date: {post_timestamp}")
 
-        # Calculate points based on time since post
         logger.info(f"➕ Awarding points for reaction")
         points = calculate_points('reaction', post_timestamp)
         
-        # ADD DAILY LIMIT CHECK
-        is_limited, adjusted_points = check_daily_limit(user.id, 'reaction', points)
+        # Check daily limit with channel_id
+        is_limited, adjusted_points = check_daily_limit(user.id, 'reaction', points, channel_id=channel_id)
         if is_limited or adjusted_points == 0:
-            logger.info(f"🚫 User {user.id} reached daily reaction limit")
+            logger.info(f"🚫 User {user.id} reached daily reaction limit for {channel_id}")
             return
         
         log_activity(user.id, user.username, user.first_name, 'reaction', 

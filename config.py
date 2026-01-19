@@ -53,10 +53,15 @@ COOLDOWN_SECONDS = {
 
 
 MAX_DAILY_POINTS = {
-    'comment': 50,      # Max 50 points from comments per day
-    'reaction': 20,     # Max 20 points from reactions per day
-}
-    
+    'comment': {
+        CHANNEL_ID_UZBEK_EUROPE: 25,
+        CHANNEL_ID_MUSLIMBEK: 25
+    },
+    'reaction': {
+        CHANNEL_ID_UZBEK_EUROPE: 10,
+        CHANNEL_ID_MUSLIMBEK: 10
+    }
+} 
 
 
 POINTS_FOR_BOOSTING=20
@@ -65,7 +70,7 @@ POINTS_FOR_REFERRAL = 5  # Points for successful referral
 POINTS_FOR_JOINING = 3    # Points for joining via referral
 
 MAX_REFERRALS_FOR_POINTS = 200
-POINTS_FOR_QUIZ = 1 
+POINTS_FOR_QUIZ = 2
 
 
 # Existing activity tracker Supabase

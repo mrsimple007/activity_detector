@@ -44,6 +44,7 @@ def get_main_menu_keyboard():
         [InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")],
         [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
         [InlineKeyboardButton("📊 Batafsil ma'lumot", callback_data="show_webapp")],
+        [InlineKeyboardButton("📋 Qoidalar", callback_data="menu_rules")],  # NEW BUTTON
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -493,7 +494,38 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=reply_markup
             )
         
-
+        elif callback_data == "menu_rules":
+            # Show rules
+            rules_text = (
+                f"📋 *TANLOV QOIDALARI*\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"📝 *Kommentlar*\n"
+                f"Endilikda siz 2 ta kanal \\(@Muslimbek\\_01 va @Uzbek\\_europe\\) orqali:\n"
+                f"➡️ har bir kanaldan 25 balldan\n"
+                f"✅ jami 50 ball to'plashingiz mumkin\n\n"
+                f"👍 *Reaksiyalar*\n"
+                f"➡️ 2 ta kanal: 10 \\+ 10\n"
+                f"✅ jami 20 ball\n\n"
+                f"👥 *Referrallar uchun:*\n"
+                f"🔒 Maksimal limit — 200 ball\n\n"
+                f"💣 *Boost uchun:*\n"
+                f"• Har bir boost uchun: 20 balldan beriladi va bu yerda ham limit yo'q\\!\n\n"
+                f"🧠 *Eng zo'r imkoniyat\\!*\n"
+                f"Qolgan barcha ballarni cheklovsiz tarzda 👉 @SimpleQuizzer\\_bot orqali Quiz tuzib yig'ishingiz mumkin\\! "
+                f"Har bir quiz uchun \\+2 ball dan beriladi va bu yerda hech qanday cheklov yo'q\\!\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"🔥 *Barchaga Omad\\!*"
+            )
+            
+            keyboard = [
+                [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
+            ]
+            
+            await query.edit_message_text(
+                rules_text,
+                parse_mode=constants.ParseMode.MARKDOWN_V2,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
 
     except Exception as e:
         logger.error(f"Error handling menu callback: {e}")

@@ -395,21 +395,37 @@ def check_rate_limit(user_id: int, activity_type: str) -> bool:
         return False
     
 
-def check_daily_limit(user_id: int, activity_type: str, points: int) -> tuple[bool, int]:
+def check_daily_limit(user_id: int, activity_type: str, points: int, channel_id: str = None) -> tuple[bool, int]:
+    """Check daily limit per channel for comments and reactions"""
     try:
         today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         
-        result = supabase.table('activity_log')\
-            .select('points')\
-            .eq('user_id', user_id)\
-            .eq('activity_type', activity_type)\
-            .gte('timestamp', today_start.isoformat())\
-            .execute()
+        # Get limit for this activity type and channel
+        if activity_type in ['comment', 'reaction']:
+            if not channel_id or channel_id not in MAX_DAILY_POINTS[activity_type]:
+                logger.warning(f"⚠️ No channel_id or invalid channel for {activity_type}")
+                return False, points
+            
+            max_points = MAX_DAILY_POINTS[activity_type][channel_id]
+            
+            # Query points for this specific channel today
+            result = supabase.table('activity_log')\
+                .select('points')\
+                .eq('user_id', user_id)\
+                .eq('activity_type', activity_type)\
+                .eq('channel_id', channel_id)\
+                .gte('timestamp', today_start.isoformat())\
+                .execute()
+        else:
+            # For other activities (referral, quiz, etc.) - no per-channel limit
+            return False, points
         
         total_today = sum(row['points'] for row in result.data)
-        max_points = MAX_DAILY_POINTS.get(activity_type, 999)
+        
+        logger.info(f"📊 User {user_id} has {total_today}/{max_points} points for {activity_type} in {channel_id} today")
         
         if total_today >= max_points:
+            logger.info(f"🚫 User {user_id} reached daily limit for {activity_type} in {channel_id}")
             return True, 0
         
         # Adjust points if would exceed limit

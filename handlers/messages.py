@@ -129,6 +129,11 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         points = POINTS_FOR_COMMENT_LATE
         logger.info(f"⏰ Comment #{position} (late - {hours_since_post:.1f}h after post). Awarding {points} points")
     
+    is_limited, adjusted_points = check_daily_limit(user.id, 'comment', points, channel_id=channel_id)
+    if is_limited or adjusted_points == 0:
+        logger.info(f"🚫 User {user.id} reached daily comment limit for {channel_id}")
+        return
+    
     # Log the activity with channel_id
-    log_activity(user.id, user.username, user.first_name, 'comment', points, 
+    log_activity(user.id, user.username, user.first_name, 'comment', adjusted_points, 
                  post_id, post_timestamp, channel_id=channel_id)
