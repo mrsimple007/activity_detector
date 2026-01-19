@@ -24,6 +24,10 @@ from handlers.commands import (
 )
 from handlers.messages import handle_comment
 from handlers.reactions import handle_reaction
+from handlers.webapp_handler import (
+    handle_webapp_data,
+    webapp_command,
+)
 
 load_dotenv()
 
@@ -54,7 +58,7 @@ def main():
 
     # Command handlers (unchanged)
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("leaderboard", show_leaderboard))
+    # application.add_handler(CommandHandler("leaderboard", show_leaderboard))
     application.add_handler(CommandHandler("resettop", reset_scores))
     application.add_handler(CommandHandler("contest", post_contest))
     application.add_handler(CommandHandler("pickwinner", pick_winner))
@@ -66,6 +70,10 @@ def main():
     application.add_handler(CallbackQueryHandler(check_boost_status_callback, pattern="^check_boost_status$"))
     application.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^menu_"))
     application.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^show_referral_info$"))
+    application.add_handler(CommandHandler("webapp", webapp_command))
+    application.add_handler(CommandHandler("leaderboard", webapp_command))
+    application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data))
+
 
     # Message and reaction handlers - now for BOTH groups
     application.add_handler(MessageHandler(combined_group_filter & filters.TEXT & ~filters.COMMAND, handle_comment))

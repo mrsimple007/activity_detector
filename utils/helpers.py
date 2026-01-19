@@ -395,9 +395,7 @@ def check_rate_limit(user_id: int, activity_type: str) -> bool:
         return False
     
 
-# In utils/helpers.py
 def check_daily_limit(user_id: int, activity_type: str, points: int) -> tuple[bool, int]:
-    """Check if user has reached daily limit. Returns (is_limited, adjusted_points)"""
     try:
         today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         
@@ -412,7 +410,6 @@ def check_daily_limit(user_id: int, activity_type: str, points: int) -> tuple[bo
         max_points = MAX_DAILY_POINTS.get(activity_type, 999)
         
         if total_today >= max_points:
-            logger.info(f"🚫 User {user_id} reached daily limit for {activity_type}")
             return True, 0
         
         # Adjust points if would exceed limit

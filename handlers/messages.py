@@ -13,7 +13,7 @@ from config import (
     POINTS_FOR_COMMENT_LATE
 )
 from utils.helpers import calculate_points, log_activity, check_rate_limit, check_daily_limit
-
+from telegram.constants import MessageOriginType
 
 logger = logging.getLogger(__name__)
 
@@ -85,21 +85,19 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_to_msg = update.message.reply_to_message
     post_id = reply_to_msg.message_id
     post_timestamp = reply_to_msg.date
-    
-    logger.info(f"📌 Comment is reply to post {post_id} from {post_timestamp}")
 
-    # CHECK IF REPLY IS TO A CHANNEL POST
-    # Channel posts are forwarded messages with forward_from_chat
-    if not reply_to_msg.forward_from_chat:
-        logger.info(f"⚠️ Reply is NOT to a channel post (no forward_from_chat), skipping points")
-        return
-    
-    if reply_to_msg.forward_from_chat.type != 'channel':
-        logger.info(f"⚠️ Reply is NOT to a channel post (forward type: {reply_to_msg.forward_from_chat.type}), skipping points")
-        return
-    
-    logger.info(f"✅ Reply is to channel post from: {reply_to_msg.forward_from_chat.title}")
+    forward_origin = reply_to_msg.forward_origin
 
+    if not forward_origin:
+        logger.info("⚠️ Reply is not to a channel message, skipping points")
+        return
+
+    if forward_origin.type != MessageOriginType.CHANNEL:
+        logger.info(f"⚠️ Message is not for the channel post (type={forward_origin.type}), skipping points")
+        return
+
+    channel_title = forward_origin.chat.title if forward_origin.chat else "Unknown"
+    logger.info(f"✅ Reply is to CHANNEL POST from: {channel_title}")
     # Check if user has already commented on this post
     if has_user_commented_on_post(user.id, post_id):
         logger.info(f"🚫 User {user.id} already commented on post {post_id}, skipping points")

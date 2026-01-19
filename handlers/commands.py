@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 ADMIN_USER_ID = ADMIN_USER_ID_EU
 
 
+
 def get_main_menu_keyboard():
     """Generate main menu keyboard"""
     keyboard = [
@@ -185,6 +186,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"✅ Siz *{POINTS_FOR_JOINING} ball* oldingiz\\!\n"
                     f"🎁 Sizni taklif qilgan foydalanuvchi *{POINTS_FOR_REFERRAL} ball* oldi\\!\n\n"
                     f"🇩🇪 *Yevropalik o'zbek* jamoasiga xush kelibsiz\\!\n\n"
+                    f"Siz ham tanlovimizda ishtirok eting va 400 000 so'm yutib oling\\!\n\n"
                     f"Quyidagi menyudan foydalaning:"
                 )
                 

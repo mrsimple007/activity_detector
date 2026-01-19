@@ -30,7 +30,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
 # Bot IDs to filter out
-BOT_IDS_TO_REMOVE = [7967610894, 8437026582, 122290051, 999932510]
+BOT_IDS_TO_REMOVE = [7967610894, 8437026582, 122290051, 999932510, 8126290272]
 
 # Scoring System with time-based multipliers
 POINTS_FOR_COMMENT_EARLY = 10  # Within 48 hours
