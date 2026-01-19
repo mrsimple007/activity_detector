@@ -58,10 +58,18 @@ def get_leaderboard_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def get_participate_keyboard():
+def get_participate_keyboard(user_id: int, bot_username: str):
     """Generate participate menu keyboard"""
+    referral_link = generate_referral_link(user_id, bot_username)
+    share_text = f"🎉 Bu mening havolam. Qo'shiling va 400,000 so'm yutib oling!\n\n🇩🇪 Simple Quizzer tanlovida ishtirok eting!\n\n Ro'yxatdan o'tib menga 5 ball, o'zingizga esa 3 ball ishlab oling👇\n {referral_link}"
+    
+    # URL encode the share text
+    import urllib.parse
+    encoded_text = urllib.parse.quote(share_text)
+    share_url = f"https://t.me/share/url?url={urllib.parse.quote(referral_link)}&text={encoded_text}"
+    
     keyboard = [
-        [InlineKeyboardButton("📤 Ulashish", switch_inline_query="Qo'shiling va ball yig'ing!")],
+        [InlineKeyboardButton("📤 Ulashish", url=share_url)],
         [InlineKeyboardButton("🚀 Boost qilish", callback_data="boost_channel")],
         [InlineKeyboardButton("👤 Mening profilim", callback_data="menu_profile")],
         [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
@@ -168,30 +176,63 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             referrer_count = get_referrer_referral_count(referrer_id)
             
             if referrer_count >= MAX_REFERRALS_FOR_POINTS:
+                bot_username = (await context.bot.get_me()).username
                 # User still gets points, but referrer doesn't
                 log_referral(referrer_id, user_id, username, first_name)
                 log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
                 
+                referral_link = generate_referral_link(user_id, bot_username)
+                
                 welcome_text = (
                     f"🎉 *Xush kelibsiz, {escape_markdown(first_name, version=2)}\\!*\n\n"
                     f"✅ Siz *{POINTS_FOR_JOINING} ball* oldingiz\\!\n\n"
-                    f"🇩🇪 *Yevropalik o'zbek* jamoasiga xush kelibsiz\\!\n\n"
+                    f"🏆 *400 000 so'm yuting\\!*\n"
+                    f"Siz ham tanlovimizda ishtirok eting\\!\n\n"
+                    f"📤 *Do'stlaringizni taklif qiling:*\n"
+                    f"Har bir do'stingiz uchun *{POINTS_FOR_REFERRAL} ball* oling\\!\n\n"
+                    f"🔗 *Sizning referal havolangiz:*\n"
+                    f"`{escape_markdown(referral_link, version=2)}`\n\n"
                     f"Quyidagi menyudan foydalaning:"
                 )
+                import urllib.parse
+                share_text = f"🎉 Bu mening havolam. Qo'shiling va 400,000 so'm yutib oling!\n\n🇩🇪 Simple Quizzer tanlovida ishtirok eting!\n\n Ro'yxatdan o'tib menga 5 ball, o'zingizga esa 3 ball ishlab oling👇\n {referral_link}"
+
+                encoded_text = urllib.parse.quote(share_text)
+                share_url = f"https://t.me/share/url?url={urllib.parse.quote(referral_link)}&text={encoded_text}"
+
+                keyboard = [
+                    [InlineKeyboardButton("📤 Ulashish", url=share_url)],
+                    [InlineKeyboardButton("🎯 Bosh menyu", callback_data="menu_main")]
+                ]
             else:
                 # Award points to both (referrer hasn't reached limit)
                 log_referral(referrer_id, user_id, username, first_name)
                 log_activity(referrer_id, None, None, 'referral', POINTS_FOR_REFERRAL, post_id=user_id)
                 log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
                 
+                referral_link = generate_referral_link(user_id, bot_username)
+                
                 welcome_text = (
                     f"🎉 *Xush kelibsiz, {escape_markdown(first_name, version=2)}\\!*\n\n"
                     f"✅ Siz *{POINTS_FOR_JOINING} ball* oldingiz\\!\n"
                     f"🎁 Sizni taklif qilgan foydalanuvchi *{POINTS_FOR_REFERRAL} ball* oldi\\!\n\n"
-                    f"🇩🇪 *Yevropalik o'zbek* jamoasiga xush kelibsiz\\!\n\n"
-                    f"Siz ham tanlovimizda ishtirok eting va 400 000 so'm yutib oling\\!\n\n"
-                    f"Quyidagi menyudan foydalaning:"
+                    f"🏆 *400 000 so'm yutib oling\\!*\n"
+                    f"Siz ham tanlovimizda ishtirok eting\\!\n\n"
+                    f"📤 *Do'stlaringizni taklif qiling:*\n"
+                    f"Har bir do'stingiz uchun *{POINTS_FOR_REFERRAL} ball* olasiz\\!\n\n"
+                    f"🔗 *Sizning referal havolangiz:*\n"
+                    f"`{escape_markdown(referral_link, version=2)}`\n\n"
+                    f"Quyidagi menyulardan foydalaning:"
                 )
+                
+                import urllib.parse
+                encoded_text = urllib.parse.quote(share_text)
+                share_url = f"https://t.me/share/url?url={urllib.parse.quote(referral_link)}&text={encoded_text}"
+
+                keyboard = [
+                    [InlineKeyboardButton("📤 Ulashish", url=share_url)],
+                    [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_profile")]
+                ]
                 
                 # Notify referrer
                 try:
@@ -206,11 +247,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception as e:
                     logger.error(f"❌ Failed to notify referrer: {e}")
             
-            await update.message.reply_text(
-                welcome_text, 
-                parse_mode=constants.ParseMode.MARKDOWN_V2,
-                reply_markup=get_main_menu_keyboard()
-            )
+                await update.message.reply_text(
+                    welcome_text, 
+                    parse_mode=constants.ParseMode.MARKDOWN_V2,
+                    reply_markup=reply_markup  # Add this
+                )
             return
         elif referrer_id == user_id:
             await update.message.reply_text(
@@ -223,12 +264,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_msg = (
         f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
         f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
-        f"Endilikda @Uzbek\\_Europe va @Muslimbek\\_01 tomonidan olib boriladi\\.\n\n"
-        f"🎯 *Qanday ishtirok etish:*\n"
+        f"*1 MILLION SO'MLIK* tanlov endilikda @Uzbek\\_Europe va @Muslimbek\\_01 tomonidan olib boriladi\\.\n\n"
+        f"🎯 *Qanday ishtirok etish mumkin:*\n"
         f"• @SimpleQuizzer\\_bot orqali quizlar yarating\n"
-        f"• Kanallarimizda aktiv bo'ling \\(komment, reaksiya, ulashish\\)\n"
         f"• Quizlarni yeching va ball to'plang\n"
-        f"• Do'stlaringizni taklif qiling\n\n"
+        f"• Kanallarimizda aktiv bo'ling \\(komment, reaksiya, ulashish\\)\n"
+        f"• Do'stlaringizni taklif qiling va ballar ishlang\n\n"
         f"Quyidagi menyudan foydalaning:"
     )
     
@@ -285,11 +326,11 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"🇩🇪 *Yevropalik o'zbek* jamoasiga qo'shiling va sovg'alar yutib oling\\!\n\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n\n"
                 f"💰 *Ballar qanday ishlab topiladi:*\n\n"
-                f"📝 *Izohlar:*\n"
+                f"📝 *Kommentlar:*\n"
                 f"  • 1\\-izoh: {FIRST_COMMENT_POINTS} ball\n"
                 f"  • 2\\-izoh: {SECOND_COMMENT_POINTS} ball\n"
                 f"  • 3\\-izoh: {THIRD_COMMENT_POINTS} ball\n"
-                f"  • Boshqa izohlar: {OTHER_COMMENT_POINTS} ball\n\n"
+                f"  • Boshqa kommentlar: {OTHER_COMMENT_POINTS} ball\n\n"
                 f"❤️ *Reaksiyalar:*\n"
                 f"  • Har bir reaksiya: {POINTS_FOR_REACTION_EARLY} ball \\(birinchi 48 soat\\)\n"
                 f"  • Keyinroq: {POINTS_FOR_REACTION_LATE} ball\n\n"
@@ -307,7 +348,7 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.edit_message_text(
                 text,
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
-                reply_markup=get_participate_keyboard()
+                reply_markup=get_participate_keyboard(user_id, bot_username)  
             )
 
 
@@ -450,7 +491,10 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             
             text += f"\n🏆 Ko'proq do'st taklif qiling va liderlar jadvalida yuqoriga ko'tariling\\!"
             
+            share_text = f"🎉 Bu mening havolam. Qo'shiling va 400,000 so'm yutib oling!\n\n🇩🇪 Simple Quizzer tanlovida ishtirok eting!\n\n Ro'yxatdan o'tib menga 5 ball, o'zingizga esa 3 ball ishlab oling👇\n {referral_link}"
+            
             keyboard = [
+                [InlineKeyboardButton("📤 Ulashish", switch_inline_query=share_text)],
                 [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_profile")]
             ]
             
@@ -778,6 +822,7 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
                     f"✅ Siz *{POINTS_FOR_JOINING} ball* oldingiz\\!\n"
                     f"🎁 Sizni taklif qilgan foydalanuvchi *{POINTS_FOR_REFERRAL} ball* oldi\\!\n\n"
                     f"🇩🇪 *Yevropalik o'zbek* jamoasiga xush kelibsiz\\!\n\n"
+                    f"Siz ham tanlovimizda ishtirok eting va 400 000 so'm yutib oling\\!\n\n"
                     f"Quyidagi menyudan foydalaning:"
                 )
                 
