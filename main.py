@@ -1,3 +1,4 @@
+from email.mime import application
 import logging
 import os
 from telegram import Update
@@ -73,6 +74,7 @@ def main():
     application.add_handler(CommandHandler("webapp", webapp_command))
     application.add_handler(CommandHandler("leaderboard", webapp_command))
     application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data))
+    application.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^show_webapp$"))
 
 
     # Message and reaction handlers - now for BOTH groups

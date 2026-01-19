@@ -1,7 +1,7 @@
 import logging
 import random
 from datetime import datetime, timezone, timedelta
-from telegram import Update, constants, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, constants, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
 
@@ -43,9 +43,19 @@ def get_main_menu_keyboard():
         [InlineKeyboardButton("🎯 Ishtirok etish", callback_data="menu_participate")],
         [InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")],
         [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
+        [InlineKeyboardButton("📊 Batafsil ma'lumot", callback_data="show_webapp")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
+
+def get_leaderboard_keyboard():
+    """Generate leaderboard menu keyboard"""
+    keyboard = [
+        [InlineKeyboardButton("📊 Batafsil ma'lumot", callback_data="show_webapp")],
+        [InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")],
+        [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 def get_participate_keyboard():
     """Generate participate menu keyboard"""
@@ -69,14 +79,6 @@ def get_profile_keyboard(user_id: int, bot_username: str):
     ]
     return InlineKeyboardMarkup(keyboard)
 
-
-def get_leaderboard_keyboard():
-    """Generate leaderboard menu keyboard"""
-    keyboard = [
-        [InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")],
-        [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command - welcome message and referral tracking"""
@@ -456,6 +458,41 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
+
+        elif callback_data == "show_webapp":
+            # Show webapp button with informative message
+            from handlers.webapp_handler import WEBAPP_URL
+            from telegram import WebAppInfo
+            
+            keyboard = [
+                [InlineKeyboardButton(
+                    "📊 Ochish", 
+                    web_app=WebAppInfo(url=WEBAPP_URL)
+                )],
+                [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            message_text = (
+                f"📊 *Batafsil Liderlar Jadvali*\n\n"
+                f"Bu yerda siz quyidagilarni ko'rishingiz mumkin:\n\n"
+                f"✅ Barcha ishtirokchilar reytingi\n"
+                f"✅ Har bir kanal bo'yicha ball taqsimoti\n"
+                f"✅ Izoh, reaksiya va boost ballari\n"
+                f"✅ Quiz va referal ballari\n"
+                f"✅ Sizning aniq pozitsiyangiz\n\n"
+                f"💡 *Qulayliklar:*\n"
+                f"• 🔄 Real vaqtda yangilanadi\n"
+                f"• 🎯 Shaxsiy statistika\n\n"
+                f"👇 Ochish uchun tugmani bosing:"
+            )
+            
+            await query.edit_message_text(
+                message_text,
+                parse_mode=constants.ParseMode.MARKDOWN_V2,
+                reply_markup=reply_markup
+            )
+        
 
 
     except Exception as e:
