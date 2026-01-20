@@ -29,7 +29,7 @@ from config import (
     CHANNEL_ID_MUSLIMBEK,
     CHANNEL_ID_UZBEK_EUROPE
 )
-from utils.helpers import get_leaderboard, log_activity, generate_referral_link, save_user_to_db
+from utils.helpers import get_leaderboard, log_activity, generate_referral_link, save_user_to_db, is_user_registered
 
 logger = logging.getLogger(__name__)
 
@@ -95,10 +95,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = update.message.from_user.username
     first_name = update.message.from_user.first_name
     last_name = update.message.from_user.last_name
-    
-    save_user_to_db(user_id, username, first_name, last_name)
-    
-    # Get referral payload if exists
+
     referral_payload = context.args[0] if context.args else None
     
     logger.info(f"🚀 /start command received from user {user_id}")
@@ -169,32 +166,117 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bot_username = (await context.bot.get_me()).username
     
     if referral_payload:
-        from utils.helpers import get_referrer_from_payload, has_user_joined_before, log_referral, get_referrer_referral_count
+        from utils.helpers import get_referrer_from_payload
         
         referrer_id = get_referrer_from_payload(referral_payload)
         
         if referrer_id and referrer_id != user_id:
-            if has_user_joined_before(user_id):
-                logger.info(f"⚠️ User {user_id} already joined before via referral")
+            # OPTIMIZATION: Single batch check for registration AND referral status
+            try:
+                user_check = supabase.table('uzbek_europe_users').select('id').eq('user_id', user_id).execute()
+                referral_check = supabase.table('referrals').select('id').eq('referred_user_id', user_id).execute()
+                
+                is_registered = len(user_check.data) > 0
+                already_referred = len(referral_check.data) > 0
+                
+                if is_registered or already_referred:
+                    logger.info(f"⚠️ User {user_id} already registered or referred")
+                    save_user_to_db(user_id, username, first_name, last_name)
+                    await update.message.reply_text(
+                        "👋 Xush kelibsiz\\!\n\n"
+                        "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
+                        "Quyidagi menyudan foydalaning:",
+                        parse_mode=constants.ParseMode.MARKDOWN_V2,
+                        reply_markup=get_main_menu_keyboard()
+                    )
+                    return
+            except Exception as e:
+                logger.error(f"❌ Error checking user status: {e}")
                 await update.message.reply_text(
-                    "👋 Xush kelibsiz\\!\n\n"
-                    "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
-                    "Quyidagi menyudan foydalaning:",
-                    parse_mode=constants.ParseMode.MARKDOWN_V2,
-                    reply_markup=get_main_menu_keyboard()
+                    "❌ Xatolik yuz berdi\\. Qaytadan urinib ko'ring\\.",
+                    parse_mode=constants.ParseMode.MARKDOWN_V2
                 )
                 return
             
-            # Check referrer's referral count
-            referrer_count = get_referrer_referral_count(referrer_id)
+            # Save user to DB first
+            save_user_to_db(user_id, username, first_name, last_name)
+            
+            # OPTIMIZATION: Fetch referrer info and count in parallel
+            try:
+                referrer_info_result = supabase.table('uzbek_europe_users').select('username, first_name').eq('user_id', referrer_id).limit(1).execute()
+                referral_count_result = supabase.table('referrals').select('id').eq('referrer_id', referrer_id).execute()
+                
+                referrer_username = None
+                referrer_first_name = None
+                if referrer_info_result.data:
+                    referrer_username = referrer_info_result.data[0].get('username')
+                    referrer_first_name = referrer_info_result.data[0].get('first_name')
+                    logger.info(f"📋 Retrieved referrer info: {referrer_username}, {referrer_first_name}")
+                
+                referrer_count = len(referral_count_result.data)
+                
+            except Exception as e:
+                logger.error(f"❌ Error fetching referrer data: {e}")
+                referrer_username = None
+                referrer_first_name = None
+                referrer_count = 0
+            
+            # OPTIMIZATION: Batch insert all activity logs and referral
+            timestamp = datetime.now(timezone.utc).isoformat()
+            activities_to_log = []
+            
+            # Check if referrer gets points
+            if referrer_count < MAX_REFERRALS_FOR_POINTS:
+                # Referrer gets points
+                activities_to_log.append({
+                    'user_id': referrer_id,
+                    'username': referrer_username,
+                    'first_name': referrer_first_name,
+                    'activity_type': 'referral',
+                    'points': POINTS_FOR_REFERRAL,
+                    'timestamp': timestamp,
+                    'post_id': user_id,
+                    'post_timestamp': None,
+                    'channel_id': None
+                })
+            
+            # User always gets joining points
+            activities_to_log.append({
+                'user_id': user_id,
+                'username': username,
+                'first_name': first_name,
+                'activity_type': 'joining',
+                'points': POINTS_FOR_JOINING,
+                'timestamp': timestamp,
+                'post_id': None,
+                'post_timestamp': None,
+                'channel_id': None
+            })
+            
+            # Referral record
+            referral_data = {
+                'referrer_id': referrer_id,
+                'referrer_username': referrer_username,
+                'referrer_first_name': referrer_first_name,
+                'referred_user_id': user_id,
+                'referred_username': username,
+                'referred_first_name': first_name,
+                'timestamp': timestamp
+            }
+            
+            try:
+                # BATCH INSERT: All activities + referral in 2 calls instead of 3-4
+                supabase.table('activity_log').insert(activities_to_log).execute()
+                supabase.table('referrals').insert(referral_data).execute()
+                logger.info(f"✅ Batch logged {len(activities_to_log)} activities and referral")
+            except Exception as e:
+                logger.error(f"❌ Error batch logging: {e}")
+            
+            # Build response message
+            referral_link = generate_referral_link(user_id, bot_username)
             
             if referrer_count >= MAX_REFERRALS_FOR_POINTS:
                 # User still gets points, but referrer doesn't
-                log_referral(referrer_id, user_id, username, first_name)
-                log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
-                
-                referral_link = generate_referral_link(user_id, bot_username)
-                
                 welcome_text = (
                     f"🎉 *Xush kelibsiz, {escape_markdown(first_name, version=2)}\\!*\n\n"
                     f"✅ Siz *{POINTS_FOR_JOINING} ball* oldingiz\\!\n\n"
@@ -206,25 +288,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"`{escape_markdown(referral_link, version=2)}`\n\n"
                     f"Quyidagi menyudan foydalaning:"
                 )
-                import urllib.parse
-                share_text = f"🎉 Bu mening havolam. Qo'shiling va 400,000 so'm yutib oling!\n\n🇩🇪 Simple Quizzer tanlovida ishtirok eting!\n\n Ro'yxatdan o'tib menga 5 ball, o'zingizga esa 3 ball ishlab oling👇\n {referral_link}"
-
-                encoded_text = urllib.parse.quote(share_text)
-                share_url = f"https://t.me/share/url?url={urllib.parse.quote(referral_link)}&text={encoded_text}"
-
-                keyboard = [
-                    [InlineKeyboardButton("📤 Ulashish", url=share_url)],
-                    [InlineKeyboardButton("🎯 Bosh menyu", callback_data="menu_main")]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
             else:
-                # Award points to both (referrer hasn't reached limit)
-                log_referral(referrer_id, user_id, username, first_name)
-                log_activity(referrer_id, None, None, 'referral', POINTS_FOR_REFERRAL, post_id=user_id)
-                log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
-                
-                referral_link = generate_referral_link(user_id, bot_username)
-                
+                # Both get points
                 welcome_text = (
                     f"🎉 *Xush kelibsiz, {escape_markdown(first_name, version=2)}\\!*\n\n"
                     f"✅ Siz *{POINTS_FOR_JOINING} ball* oldingiz\\!\n"
@@ -238,29 +303,32 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"Quyidagi menyulardan foydalaning:"
                 )
                 
-                import urllib.parse
-                share_text = f"🎉 Bu mening havolam. Qo'shiling va 400,000 so'm yutib oling!\n\n🇩🇪 Simple Quizzer tanlovida ishtirok eting!\n\n Ro'yxatdan o'tib menga 5 ball, o'zingizga esa 3 ball ishlab oling👇\n {referral_link}"
-                encoded_text = urllib.parse.quote(share_text)
-                share_url = f"https://t.me/share/url?url={urllib.parse.quote(referral_link)}&text={encoded_text}"
-
-                keyboard = [
-                    [InlineKeyboardButton("📤 Ulashish", url=share_url)],
-                    [InlineKeyboardButton("🎯 Bosh menyu", callback_data="menu_main")]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                # Notify referrer
+                # Notify referrer (async, don't wait)
                 try:
                     referrer_name = f"@{username}" if username else first_name
                     referrer_name_escaped = escape_markdown(referrer_name, version=2)
-                    await context.bot.send_message(
-                        chat_id=referrer_id,
-                        text=f"🎉 *Tabriklaymiz\\!*\n\n{referrer_name_escaped} sizning havolangiz orqali qo'shildi\\!\n\n✨ \\+{POINTS_FOR_REFERRAL} ball hisobingizga qo'shildi\\!",
-                        parse_mode=constants.ParseMode.MARKDOWN_V2
+                    # Create task to send message asynchronously without blocking
+                    context.application.create_task(
+                        context.bot.send_message(
+                            chat_id=referrer_id,
+                            text=f"🎉 *Tabriklaymiz\\!*\n\n{referrer_name_escaped} sizning havolangiz orqali qo'shildi\\!\n\n✨ \\+{POINTS_FOR_REFERRAL} ball hisobingizga qo'shildi\\!",
+                            parse_mode=constants.ParseMode.MARKDOWN_V2
+                        )
                     )
-                    logger.info(f"✅ Referrer {referrer_id} notified")
+                    logger.info(f"✅ Referrer {referrer_id} notification queued")
                 except Exception as e:
-                    logger.error(f"❌ Failed to notify referrer: {e}")
+                    logger.error(f"❌ Failed to queue referrer notification: {e}")
+            
+            import urllib.parse
+            share_text = f"🎉 Bu mening havolam. Qo'shiling va 400,000 so'm yutib oling!\n\n🇩🇪 Simple Quizzer tanlovida ishtirok eting!\n\n Ro'yxatdan o'tib menga 5 ball, o'zingizga esa 3 ball ishlab oling👇\n {referral_link}"
+            encoded_text = urllib.parse.quote(share_text)
+            share_url = f"https://t.me/share/url?url={urllib.parse.quote(referral_link)}&text={encoded_text}"
+
+            keyboard = [
+                [InlineKeyboardButton("📤 Ulashish", url=share_url)],
+                [InlineKeyboardButton("🎯 Bosh menyu", callback_data="menu_main")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
                 welcome_text, 
@@ -275,8 +343,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode=constants.ParseMode.MARKDOWN_V2
             )
             return
+
+    save_user_to_db(user_id, username, first_name, last_name)
     
-    # Regular welcome message for subscribed users without referral
     welcome_msg = (
         f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
         f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
@@ -298,7 +367,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"❌ Error sending start message: {e}")
         await update.message.reply_text(welcome_msg.replace('\\', '').replace('*', ''))
-
 
 
 async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -764,7 +832,7 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
     
     user_id = query.from_user.id
     
-    from utils.helpers import check_channel_membership, log_referral, has_user_joined_before, get_referrer_referral_count, get_referrer_from_payload
+    from utils.helpers import check_channel_membership, get_referrer_from_payload
     
     logger.info(f"🔔 Main subscription check callback from user {user_id}")
     
@@ -780,6 +848,7 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
     
     username = pending_user['username']
     first_name = pending_user['first_name']
+    last_name = pending_user['last_name']
     referral_payload = pending_user.get('referral_payload')
     
     # Check if user is now subscribed
@@ -800,29 +869,111 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
         referrer_id = get_referrer_from_payload(referral_payload)
         
         if referrer_id and referrer_id != user_id:
-            if has_user_joined_before(user_id):
-                logger.info(f"⚠️ User {user_id} already joined before")
+            # OPTIMIZATION: Batch check for registration AND referral status
+            try:
+                user_check = supabase.table('uzbek_europe_users').select('id').eq('user_id', user_id).execute()
+                referral_check = supabase.table('referrals').select('id').eq('referred_user_id', user_id).execute()
+                
+                is_registered = len(user_check.data) > 0
+                already_referred = len(referral_check.data) > 0
+                
+                if is_registered or already_referred:
+                    logger.info(f"⚠️ User {user_id} already registered or referred")
+                    save_user_to_db(user_id, username, first_name, last_name)
+                    await query.edit_message_text(
+                        "👋 Xush kelibsiz\\!\n\n"
+                        "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
+                        "Quyidagi menyudan foydalaning:",
+                        parse_mode=constants.ParseMode.MARKDOWN_V2,
+                        reply_markup=get_main_menu_keyboard()
+                    )
+                    context.user_data.pop('pending_user', None)
+                    return
+            except Exception as e:
+                logger.error(f"❌ Error checking user status: {e}")
                 await query.edit_message_text(
-                    "👋 Xush kelibsiz\\!\n\n"
-                    "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
-                    "Quyidagi menyudan foydalaning:",
-                    parse_mode=constants.ParseMode.MARKDOWN_V2,
-                    reply_markup=get_main_menu_keyboard()
+                    "❌ Xatolik yuz berdi\\. Qaytadan urinib ko'ring\\.",
+                    parse_mode=constants.ParseMode.MARKDOWN_V2
                 )
-                context.user_data.pop('pending_user', None)
                 return
             
-            # Check referrer's referral count
-            referrer_count = get_referrer_referral_count(referrer_id)
+            # Save user to DB
+            save_user_to_db(user_id, username, first_name, last_name)
             
-            # Log referral first
-            log_referral(referrer_id, user_id, username, first_name)
-            logger.info(f"✅ Referral logged: {referrer_id} -> {user_id}")
+            # OPTIMIZATION: Fetch referrer info and count in parallel
+            try:
+                referrer_info_result = supabase.table('uzbek_europe_users').select('username, first_name').eq('user_id', referrer_id).limit(1).execute()
+                referral_count_result = supabase.table('referrals').select('id').eq('referrer_id', referrer_id).execute()
+                
+                referrer_username = None
+                referrer_first_name = None
+                if referrer_info_result.data:
+                    referrer_username = referrer_info_result.data[0].get('username')
+                    referrer_first_name = referrer_info_result.data[0].get('first_name')
+                    logger.info(f"📋 Retrieved referrer info: {referrer_username}, {referrer_first_name}")
+                
+                referrer_count = len(referral_count_result.data)
+                
+            except Exception as e:
+                logger.error(f"❌ Error fetching referrer data: {e}")
+                referrer_username = None
+                referrer_first_name = None
+                referrer_count = 0
             
+            # OPTIMIZATION: Batch insert all activities and referral
+            timestamp = datetime.now(timezone.utc).isoformat()
+            activities_to_log = []
+            
+            if referrer_count < MAX_REFERRALS_FOR_POINTS:
+                # Referrer gets points
+                activities_to_log.append({
+                    'user_id': referrer_id,
+                    'username': referrer_username,
+                    'first_name': referrer_first_name,
+                    'activity_type': 'referral',
+                    'points': POINTS_FOR_REFERRAL,
+                    'timestamp': timestamp,
+                    'post_id': user_id,
+                    'post_timestamp': None,
+                    'channel_id': None
+                })
+            
+            # User gets joining points
+            activities_to_log.append({
+                'user_id': user_id,
+                'username': username,
+                'first_name': first_name,
+                'activity_type': 'joining',
+                'points': POINTS_FOR_JOINING,
+                'timestamp': timestamp,
+                'post_id': None,
+                'post_timestamp': None,
+                'channel_id': None
+            })
+            
+            # Referral record
+            referral_data = {
+                'referrer_id': referrer_id,
+                'referrer_username': referrer_username,
+                'referrer_first_name': referrer_first_name,
+                'referred_user_id': user_id,
+                'referred_username': username,
+                'referred_first_name': first_name,
+                'timestamp': timestamp
+            }
+            
+            try:
+                # BATCH INSERT
+                supabase.table('activity_log').insert(activities_to_log).execute()
+                supabase.table('referrals').insert(referral_data).execute()
+                logger.info(f"✅ Batch logged {len(activities_to_log)} activities and referral")
+            except Exception as e:
+                logger.error(f"❌ Error batch logging: {e}")
+            
+            # Build success message
             if referrer_count >= MAX_REFERRALS_FOR_POINTS:
                 # User gets points, referrer doesn't
                 logger.info(f"⚠️ Referrer {referrer_id} reached limit ({referrer_count}/{MAX_REFERRALS_FOR_POINTS}), no points awarded to referrer")
-                log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
                 
                 success_text = (
                     f"🎉 *Xush kelibsiz, {escape_markdown(first_name, version=2)}\\!*\n\n"
@@ -831,10 +982,8 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
                     f"Quyidagi menyudan foydalaning:"
                 )
             else:
-                # Award points to both
+                # Both get points
                 logger.info(f"💰 Awarding points: Referrer {referrer_id} gets {POINTS_FOR_REFERRAL}, User {user_id} gets {POINTS_FOR_JOINING}")
-                log_activity(referrer_id, None, None, 'referral', POINTS_FOR_REFERRAL, post_id=user_id)
-                log_activity(user_id, username, first_name, 'joining', POINTS_FOR_JOINING)
                 
                 success_text = (
                     f"🎉 *Xush kelibsiz, {escape_markdown(first_name, version=2)}\\!*\n\n"
@@ -845,18 +994,20 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
                     f"Quyidagi menyudan foydalaning:"
                 )
                 
-                # Notify referrer
+                # Notify referrer (async, don't wait)
                 try:
                     referrer_name = f"@{username}" if username else first_name
                     referrer_name_escaped = escape_markdown(referrer_name, version=2)
-                    await context.bot.send_message(
-                        chat_id=referrer_id,
-                        text=f"🎉 *Tabriklaymiz\\!*\n\n{referrer_name_escaped} sizning havolangiz orqali qo'shildi\\!\n\n✨ \\+{POINTS_FOR_REFERRAL} ball hisobingizga qo'shildi\\!",
-                        parse_mode=constants.ParseMode.MARKDOWN_V2
+                    context.application.create_task(
+                        context.bot.send_message(
+                            chat_id=referrer_id,
+                            text=f"🎉 *Tabriklaymiz\\!*\n\n{referrer_name_escaped} sizning havolangiz orqali qo'shildi\\!\n\n✨ \\+{POINTS_FOR_REFERRAL} ball hisobingizga qo'shildi\\!",
+                            parse_mode=constants.ParseMode.MARKDOWN_V2
+                        )
                     )
-                    logger.info(f"✅ Referrer {referrer_id} notified")
+                    logger.info(f"✅ Referrer {referrer_id} notification queued")
                 except Exception as e:
-                    logger.error(f"❌ Failed to notify referrer: {e}")
+                    logger.error(f"❌ Failed to queue referrer notification: {e}")
             
             await query.edit_message_text(
                 success_text,
@@ -865,6 +1016,7 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
             )
         else:
             # Regular user without valid referral
+            save_user_to_db(user_id, username, first_name, last_name)
             welcome_msg = (
                 f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
                 f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
@@ -877,6 +1029,7 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
             )
     else:
         # Regular user without referral
+        save_user_to_db(user_id, username, first_name, last_name)
         welcome_msg = (
             f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
             f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
@@ -891,7 +1044,6 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
     # Clear pending user data
     context.user_data.pop('pending_user', None)
     logger.info(f"✅ Subscription check completed for user {user_id}")
-
 
 async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Display the leaderboard with user's position - ONLY LAST 30 DAYS"""

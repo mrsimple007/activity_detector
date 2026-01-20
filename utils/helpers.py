@@ -22,9 +22,7 @@ def calculate_points(activity_type: str, post_timestamp: datetime) -> int:
         POINTS_FOR_REACTION_LATE,
         EARLY_WINDOW_HOURS
     )
-    
-    logger.info(f"📊 Calculating points for activity_type='{activity_type}'")
-    
+        
     time_since_post = datetime.now(timezone.utc) - post_timestamp
     hours_since_post = time_since_post.total_seconds() / 3600
     is_early = hours_since_post <= EARLY_WINDOW_HOURS
@@ -39,10 +37,7 @@ def calculate_points(activity_type: str, post_timestamp: datetime) -> int:
     return 0
 
 
-def has_user_commented_on_post(user_id: int, post_id: int) -> bool:
-    """Check if user has already commented on this post"""
-    logger.info(f"🔍 Checking if user {user_id} already commented on post {post_id}")
-    
+def has_user_commented_on_post(user_id: int, post_id: int) -> bool:    
     try:
         result = supabase.table('activity_log').select('id').eq('user_id', user_id).eq('post_id', post_id).eq('activity_type', 'comment').execute()
         has_commented = len(result.data) > 0
@@ -61,24 +56,12 @@ def has_user_commented_on_post(user_id: int, post_id: int) -> bool:
 def log_activity(user_id: int, username: str, first_name: str, activity_type: str, 
                  points: int, post_id: int = None, post_timestamp: datetime = None, 
                  channel_id: str = None):
-    """Log user activity to Supabase with channel tracking"""
     display_name = f"@{username}" if username else (first_name or f"User {user_id}")
-    logger.info(f"📝 Logging activity for user: {display_name} (ID: {user_id})")
     logger.info(f"   Type: {activity_type}, Points: {points}, Post ID: {post_id}, Channel: {channel_id}")
     
     try:
         timestamp = datetime.now(timezone.utc).isoformat()
-        
-        if activity_type == 'referral' and (not username or not first_name):
-            try:
-                existing_user = supabase.table('activity_log').select('username, first_name').eq('user_id', user_id).limit(1).execute()
-                if existing_user.data:
-                    username = existing_user.data[0].get('username') or username
-                    first_name = existing_user.data[0].get('first_name') or first_name
-                    logger.info(f"📋 Retrieved existing user info: username={username}, first_name={first_name}")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not retrieve existing user info: {e}")
-        
+
         data = {
             'user_id': user_id,
             'username': username,
@@ -86,21 +69,17 @@ def log_activity(user_id: int, username: str, first_name: str, activity_type: st
             'activity_type': activity_type,
             'points': points,
             'timestamp': timestamp,
-            'post_id': post_id,  # This should be None for boost activities
+            'post_id': post_id,
             'post_timestamp': post_timestamp.isoformat() if post_timestamp else None,
             'channel_id': channel_id
         }
         
-        logger.info(f"💾 Inserting into Supabase: {data}")
         result = supabase.table('activity_log').insert(data).execute()
         logger.info(f"✅ Successfully logged {activity_type} for {display_name} worth {points} points. Row ID: {result.data[0].get('id') if result.data else 'N/A'}")
     except Exception as e:
         logger.error(f"❌ Error logging activity to Supabase: {e}")
-        logger.error(f"❌ Failed data: user_id={user_id}, activity_type={activity_type}, points={points}")
-
         
 def get_leaderboard(days: int = None, limit: int = 20):
-    """Get leaderboard from Supabase - quiz points now included in activity_log"""
     period_desc = f"last {days} days" if days else "all time"
     logger.info(f"🏆 Fetching leaderboard for {period_desc} (limit: {limit if limit else 'all'})")
     
@@ -127,7 +106,6 @@ def get_leaderboard(days: int = None, limit: int = 20):
                 }
             user_scores[user_id]['total_score'] += row['points']
         
-        # No more separate quiz point calculation - it's already in activity_log!
         logger.info(f"👥 Aggregated scores for {len(user_scores)} unique users")
         
         # Sort by score
@@ -165,18 +143,30 @@ def has_user_joined_before(user_id: int) -> bool:
         return False
 
 def log_referral(referrer_id: int, referred_user_id: int, referred_username: str, referred_first_name: str):
-    """Log referral to database"""
+    """Log referral to database with referrer information"""
     try:
+        # Get referrer information
+        referrer_info = supabase.table('uzbek_europe_users').select('username, first_name').eq('user_id', referrer_id).limit(1).execute()
+        
+        referrer_username = None
+        referrer_first_name = None
+        
+        if referrer_info.data:
+            referrer_username = referrer_info.data[0].get('username')
+            referrer_first_name = referrer_info.data[0].get('first_name')
+        
         timestamp = datetime.now(timezone.utc).isoformat()
         data = {
             'referrer_id': referrer_id,
+            'referrer_username': referrer_username,
+            'referrer_first_name': referrer_first_name,
             'referred_user_id': referred_user_id,
             'referred_username': referred_username,
             'referred_first_name': referred_first_name,
             'timestamp': timestamp
         }
         supabase.table('referrals').insert(data).execute()
-        logger.info(f"✅ Referral logged: {referrer_id} -> {referred_user_id}")
+        logger.info(f"✅ Referral logged: {referrer_id} ({referrer_first_name}) -> {referred_user_id} ({referred_first_name})")
     except Exception as e:
         logger.error(f"❌ Error logging referral: {e}")
 
@@ -201,17 +191,13 @@ def get_referrer_referral_count(referrer_id: int) -> int:
     try:
         result = supabase.table('referrals').select('id').eq('referrer_id', referrer_id).execute()
         count = len(result.data)
-        logger.info(f"📊 Referrer {referrer_id} has {count} referrals")
         return count
     except Exception as e:
         logger.error(f"❌ Error getting referral count: {e}")
         return 0
 
 
-def save_user_to_db(user_id: int, username: str, first_name: str, last_name: str = None):
-    """Save or update user in uzbek_europe_users table"""
-    logger.info(f"💾 Saving user {user_id} to uzbek_europe_users table")
-    
+def save_user_to_db(user_id: int, username: str, first_name: str, last_name: str = None):    
     try:
         timestamp = datetime.now(timezone.utc).isoformat()
         
@@ -234,7 +220,6 @@ def save_user_to_db(user_id: int, username: str, first_name: str, last_name: str
             user_data['created_at'] = timestamp
             supabase.table('uzbek_europe_users').insert(user_data).execute()
         
-        logger.info(f"✅ User {user_id} saved successfully to uzbek_europe_users")
         return True
     except Exception as e:
         logger.error(f"❌ Error saving user to database: {e}")
@@ -387,7 +372,6 @@ def check_rate_limit(user_id: int, activity_type: str) -> bool:
             .execute()
         
         if result.data:
-            logger.info(f"⏳ User {user_id} is rate limited for {activity_type}")
             return True
         return False
     except Exception as e:
@@ -425,7 +409,6 @@ def check_daily_limit(user_id: int, activity_type: str, points: int, channel_id:
         logger.info(f"📊 User {user_id} has {total_today}/{max_points} points for {activity_type} in {channel_id} today")
         
         if total_today >= max_points:
-            logger.info(f"🚫 User {user_id} reached daily limit for {activity_type} in {channel_id}")
             return True, 0
         
         # Adjust points if would exceed limit
@@ -435,3 +418,13 @@ def check_daily_limit(user_id: int, activity_type: str, points: int, channel_id:
     except Exception as e:
         logger.error(f"Error checking daily limit: {e}")
         return False, points
+    
+
+def is_user_registered(user_id: int) -> bool:
+    try:
+        result = supabase.table('uzbek_europe_users').select('id').eq('user_id', user_id).execute()
+        is_registered = len(result.data) > 0
+        return is_registered
+    except Exception as e:
+        logger.error(f"❌ Error checking user registration: {e}")
+        return False
