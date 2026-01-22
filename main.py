@@ -45,10 +45,7 @@ logging.getLogger("telegram").setLevel(logging.WARNING)
 logging.getLogger("telegram.ext.ExtBot").setLevel(logging.WARNING)
 
 def main():
-    """Start the bot"""
-    logger.info("=" * 60)
     logger.info("🤖 TELEGRAM ACTIVITY TRACKER BOT STARTING")
-    logger.info("=" * 60)
     
     application = Application.builder().token(BOT_TOKEN).build()
     
@@ -76,13 +73,25 @@ def main():
     application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_webapp_data))
     application.add_handler(CallbackQueryHandler(handle_menu_callback, pattern="^show_webapp$"))
 
+    from handlers.instagram_handler import (
+        show_instagram_menu,
+        handle_instagram_request,
+        handle_instagram_admin_response, send_screenshot_command, handle_screenshot_photo
+    )
+
+    # Inside main() function, add these handlers:
+    application.add_handler(CallbackQueryHandler(show_instagram_menu, pattern="^instagram_menu$"))
+    application.add_handler(CallbackQueryHandler(handle_instagram_request, pattern="^instagram_(muslimbek|uzbek_europe)$"))
+    application.add_handler(CallbackQueryHandler(handle_instagram_admin_response, pattern="^instagram_(approve|decline)_"))
+    application.add_handler(CommandHandler("send_screenshot", send_screenshot_command))
+    application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_screenshot_photo))
+
 
     # Message and reaction handlers - now for BOTH groups
     application.add_handler(MessageHandler(combined_group_filter & filters.TEXT & ~filters.COMMAND, handle_comment))
     application.add_handler(MessageReactionHandler(handle_reaction, chat_id=[GROUP_CHAT_ID, GROUP_CHAT_ID_2]))
 
     logger.info("✅ All handlers registered for both groups")
-    logger.info("🚀 Starting polling...")
     application.run_polling(allowed_updates=[Update.MESSAGE, Update.MESSAGE_REACTION, Update.CALLBACK_QUERY])
 
 if __name__ == '__main__':

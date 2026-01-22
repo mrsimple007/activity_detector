@@ -44,7 +44,7 @@ def get_main_menu_keyboard():
         [InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")],
         [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
         [InlineKeyboardButton("📊 Batafsil ma'lumot", callback_data="show_webapp")],
-        [InlineKeyboardButton("📋 Qoidalar", callback_data="menu_rules")],  # NEW BUTTON
+        [InlineKeyboardButton("📋 Qoidalar", callback_data="menu_rules")], 
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -70,6 +70,7 @@ def get_participate_keyboard(user_id: int, bot_username: str):
     
     keyboard = [
         [InlineKeyboardButton("📤 Ulashish", url=share_url)],
+        [InlineKeyboardButton("📱 Instagramda ball olish", callback_data="instagram_menu")],  
         [InlineKeyboardButton("🚀 Boost qilish", callback_data="boost_channel")],
         [InlineKeyboardButton("👤 Mening profilim", callback_data="menu_profile")],
         [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
@@ -83,6 +84,7 @@ def get_profile_keyboard(user_id: int, bot_username: str):
     keyboard = [
         [InlineKeyboardButton("📤 Referal ma'lumot", callback_data="show_referral_info")],
         [InlineKeyboardButton("🚀 Boost qilish", callback_data="boost_channel")],
+        [InlineKeyboardButton("📱 Instagramda ball olish", callback_data="instagram_menu")],  
         [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
         [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
     ]
@@ -438,7 +440,6 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
         elif callback_data == "menu_profile":
             from utils.helpers import get_user_stats
-            # Show user profile with per-channel breakdown
             stats = get_user_stats(user_id)
             
             if stats:
@@ -451,7 +452,6 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 uzbek_channel = escape_markdown("@uzbek_europe", version=2)
                 muslimbek_channel = escape_markdown("@muslimbek_01", version=2)
 
-
                 text = (
                     f"📊 *Sizning ko'rsatkichlaringiz:*\n\n"
                     f"👤 Nickname: {display_name_escaped}\n"
@@ -460,10 +460,12 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"🇩🇪 *Uzbek Europe \\({uzbek_channel}\\) kanalida:*\n"
                     f"📝 Komment ballari: {uzbek_europe['comment_points']}\n"
                     f"❤️ Reaksiya ballari: {uzbek_europe['reaction_points']}\n"
+                    f"📱 Instagram ballari: {uzbek_europe['instagram_points']}\n"  # Added
                     f"🚀 Boost ballari: {uzbek_europe['boost_points']}\n\n"
                     f"📚 *Muslimbek \\({muslimbek_channel}\\) kanalida:*\n"
                     f"📝 Komment ballari: {muslimbek['comment_points']}\n"
                     f"❤️ Reaksiya ballari: {muslimbek['reaction_points']}\n"
+                    f"📱 Instagram ballari: {muslimbek['instagram_points']}\n"  # Added
                     f"🚀 Boost ballari: {muslimbek['boost_points']}\n\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🎯 Quiz ballari: {stats['quiz_points']}\n"
@@ -634,6 +636,10 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"👍 *Reaksiyalar*\n"
                 f"➡️ 2 ta kanal: 10 \\+ 10\n"
                 f"✅ jami 20 ball\n\n"
+                f"📱 *Instagram obunalar:*\n"
+                f"➡️ Har bir sahifa uchun: 25 ball\n"
+                f"➡️ 2 ta sahifa: @\\_muslimbek\\_01 va @uzbek\\_german\n"
+                f"✅ jami 50 ball\n\n"
                 f"👥 *Referrallar uchun:*\n"
                 f"🔒 Maksimal limit — 200 ball\n\n"
                 f"💣 *Boost uchun:*\n"
@@ -654,7 +660,6 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-
     except Exception as e:
         logger.error(f"Error handling menu callback: {e}")
         await query.answer("❌ Xatolik yuz berdi. Qaytadan urinib ko'ring.", show_alert=True)
@@ -1104,7 +1109,6 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif i == 2:
             rank = "🥉"
         else:
-            # ESCAPE THE DOT HERE TOO
             rank = f"{i + 1}\\."
         
         leaderboard_text += f"{rank} {display_name_escaped} \\- {score} ball\n"

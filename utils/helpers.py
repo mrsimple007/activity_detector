@@ -244,11 +244,13 @@ def get_user_stats(user_id: int):
                 'comment_points': 0,
                 'reaction_points': 0,
                 'boost_points': 0,
+                'instagram_points': 0,  # Added
             },
             CHANNEL_ID_MUSLIMBEK: {
                 'comment_points': 0,
                 'reaction_points': 0,
                 'boost_points': 0,
+                'instagram_points': 0,  # Added
             }
         }
         
@@ -285,6 +287,8 @@ def get_user_stats(user_id: int):
                     stats_by_channel[channel_id]['reaction_points'] += points
                 elif activity_type == 'boost':
                     stats_by_channel[channel_id]['boost_points'] += points
+                elif activity_type == 'instagram':  # Added
+                    stats_by_channel[channel_id]['instagram_points'] += points
         
         # Get referral count
         referral_result = supabase.table('referrals').select('id').eq('referrer_id', user_id).execute()

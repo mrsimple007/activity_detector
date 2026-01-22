@@ -1,0 +1,579 @@
+import logging
+from datetime import datetime, timezone
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+from telegram.helpers import escape_markdown
+from telegram import constants
+
+from config import (
+    ADMIN_USERNAME,
+    ADMIN_USERNAME_2,
+    ADMIN_USERNAME_2,
+    supabase,
+    POINTS_FOR_INSTAGRAM,
+    INSTAGRAM_MUSLIMBEK,
+    INSTAGRAM_UZBEK_EUROPE,
+    CHANNEL_ID_UZBEK_EUROPE,
+    CHANNEL_ID_MUSLIMBEK
+)
+
+logger = logging.getLogger(__name__)
+
+
+async def show_instagram_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show Instagram subscription menu"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    
+    # Check if user already got points for Instagram
+    try:
+        # Check Muslimbek Instagram
+        muslimbek_check = supabase.table('activity_log')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('activity_type', 'instagram')\
+            .eq('channel_id', CHANNEL_ID_MUSLIMBEK)\
+            .execute()
+        
+        # Check Uzbek Europe Instagram
+        uzbek_europe_check = supabase.table('activity_log')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('activity_type', 'instagram')\
+            .eq('channel_id', CHANNEL_ID_UZBEK_EUROPE)\
+            .execute()
+        
+        has_muslimbek = len(muslimbek_check.data) > 0
+        has_uzbek_europe = len(uzbek_europe_check.data) > 0
+        
+    except Exception as e:
+        logger.error(f"❌ Error checking Instagram status: {e}")
+        has_muslimbek = False
+        has_uzbek_europe = False
+    
+    # Check pending requests
+    try:
+        pending_requests = supabase.table('instagram_requests')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .eq('status', 'pending')\
+            .execute()
+        
+        pending_muslimbek = any(r['channel_id'] == CHANNEL_ID_MUSLIMBEK for r in pending_requests.data)
+        pending_uzbek_europe = any(r['channel_id'] == CHANNEL_ID_UZBEK_EUROPE for r in pending_requests.data)
+        
+    except Exception as e:
+        logger.error(f"❌ Error checking pending requests: {e}")
+        pending_muslimbek = False
+        pending_uzbek_europe = False
+    
+    # Build status text
+    muslimbek_status = "✅ Ball olindi" if has_muslimbek else ("⏳ Kutilmoqda" if pending_muslimbek else f"🎁 {POINTS_FOR_INSTAGRAM} ball")
+    uzbek_europe_status = "✅ Ball olindi" if has_uzbek_europe else ("⏳ Kutilmoqda" if pending_uzbek_europe else f"🎁 {POINTS_FOR_INSTAGRAM} ball")
+    
+    text = (
+        f"📱 *INSTAGRAM ORQALI BALL YIGING\\!*\n\n"
+        f"Bizning Instagram sahifalarimizga obuna bo'lib qo'shimcha ball oling\\!\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🔖 *Muslimbek Abdurakhimov*\n"
+        f"Status: {escape_markdown(muslimbek_status, version=2)}\n\n"
+        f"🇩🇪 *Yevropalik o'zbek*\n"
+        f"Status: {escape_markdown(uzbek_europe_status, version=2)}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"💰 *Har bir sahifa uchun:* {POINTS_FOR_INSTAGRAM} ball\n"
+        f"🎁 *Jami:* {POINTS_FOR_INSTAGRAM * 2} ball\n\n"
+        f"⚠️ *MUHIM:*\n"
+        f"• Podpiska qiling va skrinshot oling\n"
+        f"• Skrinni @SimpleLearn\\_main\\_admin ga yuboring\n"
+        f"• Tasdiqlangandan keyin ball olasiz\n"
+        f"• Podpiskalar tekshiriladi\\!\n"
+        f"• Agar qaytarib olsangiz\\, ballar olib qo'yiladi\\!\n\n"
+        f"👇 Qaysi sahifaga obuna bo'ldingiz\\?"
+    )
+    
+    keyboard = []
+    
+    # Add buttons only if not received and not pending
+    if not has_muslimbek and not pending_muslimbek:
+        keyboard.append([InlineKeyboardButton(
+            "🔖 Muslimbek Abdurakhimov", 
+            callback_data="instagram_muslimbek"
+        )])
+    
+    if not has_uzbek_europe and not pending_uzbek_europe:
+        keyboard.append([InlineKeyboardButton(
+            "🇩🇪 Yevropalik o'zbek", 
+            callback_data="instagram_uzbek_europe"
+        )])
+    
+    keyboard.append([InlineKeyboardButton("◀️ Orqaga", callback_data="menu_participate")])
+    
+    await query.edit_message_text(
+        text,
+        parse_mode=constants.ParseMode.MARKDOWN_V2,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def handle_instagram_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle Instagram subscription request"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    username = query.from_user.username
+    first_name = query.from_user.first_name
+    last_name = query.from_user.last_name
+    
+    # Determine which channel
+    if query.data == "instagram_muslimbek":
+        channel_id = CHANNEL_ID_MUSLIMBEK
+        channel_name = "Muslimbek Abdurakhimov"
+        instagram_url = INSTAGRAM_MUSLIMBEK
+    else:  # instagram_uzbek_europe
+        channel_id = CHANNEL_ID_UZBEK_EUROPE
+        channel_name = "Yevropalik o'zbek"
+        instagram_url = INSTAGRAM_UZBEK_EUROPE
+    
+    # Check if already received points
+    try:
+        existing_points = supabase.table('activity_log')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('activity_type', 'instagram')\
+            .eq('channel_id', channel_id)\
+            .execute()
+        
+        if len(existing_points.data) > 0:
+            await query.answer("✅ Siz bu sahifa uchun allaqachon ball oldingiz!", show_alert=True)
+            return
+    except Exception as e:
+        logger.error(f"❌ Error checking existing points: {e}")
+    
+    # Check if already has pending request
+    try:
+        pending = supabase.table('instagram_requests')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('channel_id', channel_id)\
+            .eq('status', 'pending')\
+            .execute()
+        
+        if len(pending.data) > 0:
+            await query.answer("⏳ Sizning so'rovingiz allaqachon yuborilgan! Javobni kuting.", show_alert=True)
+            return
+    except Exception as e:
+        logger.error(f"❌ Error checking pending requests: {e}")
+    
+    # Create request in database
+    try:
+        request_data = {
+            'user_id': user_id,
+            'username': username,
+            'first_name': first_name,
+            'last_name': last_name,
+            'channel_id': channel_id,
+            'channel_name': channel_name,
+            'status': 'pending',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'admin_message_ids': {}  # Store message IDs for each admin
+        }
+        
+        result = supabase.table('instagram_requests').insert(request_data).execute()
+        request_id = result.data[0]['id']
+        
+        logger.info(f"✅ Created Instagram request {request_id} for user {user_id}, channel {channel_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating Instagram request: {e}")
+        await query.answer("❌ Xatolik yuz berdi. Qaytadan urinib ko'ring.", show_alert=True)
+        return
+    
+    # Send notification to ALL admins
+    from config import INSTAGRAM_ADMIN_IDS
+    admin_message_ids = {}
+    
+    try:
+        user_display = f"@{username}" if username else first_name
+        user_info = (
+            f"👤 *Foydalanuvchi:* {escape_markdown(user_display, version=2)}\n"
+            f"🆔 *ID:* `{user_id}`\n"
+            f"📝 *Ism:* {escape_markdown(first_name or 'N/A', version=2)}\n"
+            f"📝 *Familiya:* {escape_markdown(last_name or 'N/A', version=2)}\n"
+            f"👤 *Username:* {escape_markdown(f'@{username}' if username else 'N/A', version=2)}\n"
+        )
+        
+        admin_text = (
+            f"📱 *INSTAGRAM OBUNA SO'ROVI*\n\n"
+            f"🔖 *Kanal:* {escape_markdown(channel_name, version=2)}\n"
+            f"🔗 *Instagram:* {escape_markdown(instagram_url, version=2)}\n\n"
+            f"{user_info}\n"
+            f"💰 *Ball:* {POINTS_FOR_INSTAGRAM}\n\n"
+            f"⚠️ *Foydalanuvchiga skrinshot yuborishni eslatdingizmi\\?*"
+        )
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"instagram_approve_{request_id}"),
+                InlineKeyboardButton("❌ Rad etish", callback_data=f"instagram_decline_{request_id}")
+            ]
+        ]
+        
+        # Send to all admins and store message IDs
+        for admin_id in INSTAGRAM_ADMIN_IDS:
+            try:
+                sent_message = await context.bot.send_message(
+                    chat_id=admin_id,
+                    text=admin_text,
+                    parse_mode=constants.ParseMode.MARKDOWN_V2,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+                admin_message_ids[str(admin_id)] = sent_message.message_id
+                logger.info(f"✅ Sent Instagram request notification to admin {admin_id}")
+            except Exception as e:
+                logger.error(f"❌ Error sending notification to admin {admin_id}: {e}")
+        
+        # Update request with message IDs
+        supabase.table('instagram_requests')\
+            .update({'admin_message_ids': admin_message_ids})\
+            .eq('id', request_id)\
+            .execute()
+        
+    except Exception as e:
+        logger.error(f"❌ Error sending admin notifications: {e}")
+    
+    # Inform user
+    user_text = (
+        f"✅ *So'rovingiz yuborildi\\!*\n\n"
+        f"📱 *Kanal:* {escape_markdown(channel_name, version=2)}\n\n"
+        f"📸 *Endi quyidagilarni bajaring:*\n"
+        f"1️⃣ Instagram sahifasiga o'ting\n"
+        f"2️⃣ Podpiska tugmasini bosing\n"
+        f"3️⃣ Skrinshot oling\n"
+        f"4️⃣ /send\\_screenshot buyrug'ini yuboring va skrinni yuklang\n"
+        f"5️⃣ Yoki \\screenshotni to'g'ridan to'g'ri {ADMIN_USERNAME} yoki {ADMIN_USERNAME_2} ga yuborishingiz mumkin\n\n"
+        f"⏳ Tasdiqlangandan keyin ball olasiz\\!\n\n"
+        f"🔗 *Instagram:* {escape_markdown(instagram_url, version=2)}"
+    )
+    
+    await query.edit_message_text(
+        user_text,
+        parse_mode=constants.ParseMode.MARKDOWN_V2,
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("◀️ Orqaga", callback_data="instagram_menu")
+        ]])
+    )
+
+
+async def handle_instagram_admin_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle admin approval/decline of Instagram request"""
+    query = update.callback_query
+    await query.answer()
+    
+    admin_id = query.from_user.id
+    admin_username = query.from_user.username or query.from_user.first_name
+    
+    # Check if user is an admin
+    from config import INSTAGRAM_ADMIN_IDS
+    if admin_id not in INSTAGRAM_ADMIN_IDS:
+        await query.answer("❌ Siz admin emassiz!", show_alert=True)
+        return
+    
+    # Parse callback data
+    action, request_id = query.data.rsplit('_', 1)
+    is_approve = action == "instagram_approve"
+    
+    try:
+        # Get request details
+        request = supabase.table('instagram_requests')\
+            .select('*')\
+            .eq('id', request_id)\
+            .execute()
+        
+        if not request.data:
+            await query.answer("❌ So'rov topilmadi!", show_alert=True)
+            return
+        
+        request_data = request.data[0]
+        
+        # Check if already processed
+        if request_data['status'] != 'pending':
+            processed_by = request_data.get('processed_by_username', 'admin')
+            await query.answer(f"⚠️ Bu so'rov allaqachon {request_data['status']} qilingan ({processed_by} tomonidan)!", show_alert=True)
+            return
+        
+        user_id = request_data['user_id']
+        username = request_data['username']
+        first_name = request_data['first_name']
+        channel_id = request_data['channel_id']
+        channel_name = request_data['channel_name']
+        admin_message_ids = request_data.get('admin_message_ids', {})
+        
+        if is_approve:
+            # Check if user already received points for this channel (prevent duplicate)
+            try:
+                existing_points = supabase.table('activity_log')\
+                    .select('id')\
+                    .eq('user_id', user_id)\
+                    .eq('activity_type', 'instagram')\
+                    .eq('channel_id', channel_id)\
+                    .execute()
+                
+                if len(existing_points.data) > 0:
+                    # Already received points - update request as approved but don't award points
+                    supabase.table('instagram_requests')\
+                        .update({
+                            'status': 'approved',
+                            'processed_at': datetime.now(timezone.utc).isoformat(),
+                            'processed_by': admin_id,
+                            'processed_by_username': admin_username
+                        })\
+                        .eq('id', request_id)\
+                        .execute()
+                    
+                    logger.warning(f"⚠️ User {user_id} already received points for channel {channel_id}")
+                    
+                    # Notify admin
+                    await query.answer(f"⚠️ Foydalanuvchi bu kanal uchun allaqachon ball olgan! So'rov tasdiqlandi, lekin ball berilmadi.", show_alert=True)
+                    
+                    # Notify user
+                    user_text = (
+                        f"✅ *So'rovingiz tasdiqlandi\\!*\n\n"
+                        f"📱 *Kanal:* {escape_markdown(channel_name, version=2)}\n\n"
+                        f"⚠️ Siz bu kanal uchun allaqachon ball olgan edingiz\\."
+                    )
+                    
+                    keyboard = [
+                        [InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")],
+                        [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
+                        [InlineKeyboardButton("🎯 Bosh menyu", callback_data="menu_main")]
+                    ]
+                    
+                    admin_response = f"✅ So'rov tasdiqlandi, lekin ball allaqachon berilgan edi ({admin_username} tomonidan)!"
+                    
+                else:
+                    # Award points normally
+                    from utils.helpers import log_activity
+                    log_activity(
+                        user_id=user_id,
+                        username=username,
+                        first_name=first_name,
+                        activity_type='instagram',
+                        points=POINTS_FOR_INSTAGRAM,
+                        post_id=None,
+                        post_timestamp=None,
+                        channel_id=channel_id
+                    )
+                    
+                    # Update request status
+                    supabase.table('instagram_requests')\
+                        .update({
+                            'status': 'approved',
+                            'processed_at': datetime.now(timezone.utc).isoformat(),
+                            'processed_by': admin_id,
+                            'processed_by_username': admin_username
+                        })\
+                        .eq('id', request_id)\
+                        .execute()
+                    
+                    logger.info(f"✅ Approved Instagram request {request_id} by admin {admin_username}, awarded {POINTS_FOR_INSTAGRAM} points to user {user_id}")
+                    
+                    # Notify user
+                    user_text = (
+                        f"🎉 *Tabriklaymiz\\!*\n\n"
+                        f"Sizning Instagram obuna so'rovingiz tasdiqlandi\\!\n\n"
+                        f"📱 *Kanal:* {escape_markdown(channel_name, version=2)}\n"
+                        f"💰 *Olingan ball:* \\+{POINTS_FOR_INSTAGRAM}\n\n"
+                        f"✅ Ballaringiz hisobingizga qo'shildi\\!"
+                    )
+                    
+                    keyboard = [
+                        [InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")],
+                        [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
+                        [InlineKeyboardButton("🎯 Bosh menyu", callback_data="menu_main")]
+                    ]
+                    
+                    admin_response = f"✅ So'rov tasdiqlandi ({admin_username} tomonidan)!"
+                    
+            except Exception as e:
+                logger.error(f"❌ Error checking existing points: {e}")
+                await query.answer("❌ Xatolik yuz berdi!", show_alert=True)
+                return
+            
+        else:
+            # Decline request
+            supabase.table('instagram_requests')\
+                .update({
+                    'status': 'declined',
+                    'processed_at': datetime.now(timezone.utc).isoformat(),
+                    'processed_by': admin_id,
+                    'processed_by_username': admin_username
+                })\
+                .eq('id', request_id)\
+                .execute()
+            
+            logger.info(f"❌ Declined Instagram request {request_id} by admin {admin_username} for user {user_id}")
+            
+            # Notify user
+            user_text = (
+                f"❌ *So'rovingiz rad etildi*\n\n"
+                f"📱 *Kanal:* {escape_markdown(channel_name, version=2)}\n\n"
+                f"Iltimos\\, quyidagilarni tekshiring:\n"
+                f"• Instagram sahifasiga haqiqatan ham obuna bo'lganmisiz\\?\n"
+                f"• Skrinshot aniq ko'rinib turadimi\\?\n"
+                f"• To'g'ri sahifaga obuna bo'lganmisiz\\?\n\n"
+                f"Qaytadan urinib ko'rishingiz mumkin\\!"
+            )
+            
+            keyboard = [
+                [InlineKeyboardButton("📱 Qayta urinish", callback_data="instagram_menu")],
+                [InlineKeyboardButton("🎯 Bosh menyu", callback_data="menu_main")]
+            ]
+            
+            admin_response = f"❌ So'rov rad etildi ({admin_username} tomonidan)!"
+        
+        # Send notification to user
+        try:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=user_text,
+                parse_mode=constants.ParseMode.MARKDOWN_V2,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except Exception as e:
+            logger.error(f"❌ Error sending user notification: {e}")
+        
+        # Update ALL admin messages
+        user_display = f"@{username}" if username else first_name
+        formatted_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        escaped_time = escape_markdown(formatted_time, version=2)
+
+        updated_admin_text = (
+            f"{'✅ TASDIQLANDI' if is_approve else '❌ RAD ETILDI'}\n\n"
+            f"📱 *Kanal:* {escape_markdown(channel_name, version=2)}\n"
+            f"👤 *Foydalanuvchi:* {escape_markdown(user_display, version=2)}\n"
+            f"💰 *Ball:* {POINTS_FOR_INSTAGRAM if is_approve else 0}\n\n"
+            f"👨‍💼 *Admin:* {escape_markdown(admin_username, version=2)}\n"
+            f"⏰ *Vaqt:* {escaped_time}"
+        )
+        
+        # Update the current admin's message
+        try:
+            await query.edit_message_text(
+                text=updated_admin_text,
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
+        except Exception as e:
+            logger.error(f"❌ Error updating current admin message: {e}")
+        
+        # Update messages for OTHER admins
+        for admin_id_str, message_id in admin_message_ids.items():
+            if int(admin_id_str) == admin_id:
+                continue
+                
+            try:
+                await context.bot.edit_message_text(
+                    chat_id=int(admin_id_str),
+                    message_id=message_id,
+                    text=updated_admin_text,
+                    parse_mode=constants.ParseMode.MARKDOWN_V2
+                )
+            except Exception as e:
+                logger.error(f"❌ Error updating message for admin {admin_id_str}: {e}")
+        
+        await query.answer(admin_response, show_alert=True)
+        
+    except Exception as e:
+        logger.error(f"❌ Error processing Instagram request: {e}")
+        await query.answer("❌ Xatolik yuz berdi!", show_alert=True)
+
+
+async def send_screenshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    
+    text = (
+        f"📸 *SKRINSHOT YUBORISH*\n\n"
+        f"Iltimos\\, Instagram obuna skrinshot'ingizni yuboring\\.\n\n"
+        f"⚠️ *Eslatma:*\n"
+        f"• Skrinshot aniq ko'rinishi kerak\n"
+        f"• Obuna qilganingiz ko'rinib turishi shart\n"
+        f"• Har bir kanal uchun alohida skrinshot yuboring\n\n"
+        f"📤 Rasmni hozir yuboring\\!"
+    )
+    
+    # Set state for waiting screenshot
+    context.user_data['waiting_screenshot'] = True
+    
+    await update.message.reply_text(
+        text,
+        parse_mode=constants.ParseMode.MARKDOWN_V2
+    )
+
+
+async def handle_screenshot_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get('waiting_screenshot'):
+        return
+    
+    user_id = update.message.from_user.id
+    username = update.message.from_user.username 
+    first_name = update.message.from_user.first_name
+    
+    # Get the photo
+    photo = update.message.photo[-1]  
+    
+    # Get user's pending requests
+    try:
+        pending_requests = supabase.table('instagram_requests')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .eq('status', 'pending')\
+            .execute()
+        
+        if not pending_requests.data:
+            await update.message.reply_text(
+                "❌ Sizda hozirda kutilayotgan so'rov yo'q\\. Avval Instagram obuna so'rovini yuboring\\.",
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
+            context.user_data['waiting_screenshot'] = False
+            return
+        
+        # Forward screenshot to all admins
+        from config import INSTAGRAM_ADMIN_IDS
+        
+        user_display = f"@{username}" if username else first_name
+        caption = (
+            f"📸 *INSTAGRAM SKRINSHOT*\n\n"
+            f"👤 *Foydalanuvchi:* {escape_markdown(user_display, version=2)}\n"
+            f"🆔 *ID:* `{user_id}`\n\n"
+            f"⏳ *Kutilayotgan so'rovlar:* {len(pending_requests.data)} ta"
+        )
+        
+        for admin_id in INSTAGRAM_ADMIN_IDS:
+            try:
+                await context.bot.send_photo(
+                    chat_id=admin_id,
+                    photo=photo.file_id,
+                    caption=caption,
+                    parse_mode=constants.ParseMode.MARKDOWN_V2
+                )
+                logger.info(f"✅ Forwarded screenshot to admin {admin_id}")
+            except Exception as e:
+                logger.error(f"❌ Error forwarding to admin {admin_id}: {e}")
+        
+        # Confirm to user
+        await update.message.reply_text(
+            "✅ Skrinshot adminlarga yuborildi\\! Javobni kuting\\.",
+            parse_mode=constants.ParseMode.MARKDOWN_V2
+        )
+        
+        # Reset state
+        context.user_data['waiting_screenshot'] = False
+        
+    except Exception as e:
+        logger.error(f"❌ Error handling screenshot: {e}")
+        await update.message.reply_text(
+            "❌ Xatolik yuz berdi\\. Qaytadan urinib ko'ring\\.",
+            parse_mode=constants.ParseMode.MARKDOWN_V2
+        )

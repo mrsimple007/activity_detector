@@ -18,9 +18,6 @@ CHANNEL_USERNAME_2 = "muslimbek_01"
 CHANNEL_ID_UZBEK_EUROPE = "uzbek_europe"
 CHANNEL_ID_MUSLIMBEK = "muslimbek_01"
 
-
-
-
 PRIVATE_CHANNEL_LINK = os.environ.get("PRIVATE_CHANNEL_LINK", "")
 
 ADMIN_USER_ID = int(os.environ.get("ADMIN_USER_ID", "0"))
@@ -31,6 +28,28 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
 # Bot IDs to filter out
 BOT_IDS_TO_REMOVE = [7967610894, 8437026582, 122290051, 999932510, 8126290272]
+
+# Instagram Points
+POINTS_FOR_INSTAGRAM = 25
+INSTAGRAM_MUSLIMBEK = "https://instagram.com/_muslimbek_01/"
+INSTAGRAM_UZBEK_EUROPE = "https://www.instagram.com/uzbek_german/"
+
+
+
+ADMIN_USERNAME="@Simplelearn\\_main\\_admin"
+ADMIN_USERNAME_2="@Uzbek\\_europe\\_admin"
+
+
+# # Admin for Instagram verification
+# INSTAGRAM_ADMIN_IDS = [7967610894, 
+#                        8437026582, 
+#                        122290051, 
+#                        999932510, 
+#                        8126290272]
+
+# Admin for Instagram verification
+INSTAGRAM_ADMIN_IDS = [8437026582, 122290051]
+
 
 # Scoring System with time-based multipliers
 POINTS_FOR_COMMENT_EARLY = 10  # Within 48 hours
