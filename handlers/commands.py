@@ -129,14 +129,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         join_message = (
-            f"📢 *Botdan foydalanish uchun kanallarimizga qo'shiling\\!*\n\n"
-            f"🇩🇪 *Yevropalik o'zbek* \\- Germaniyaga kelganlar va kelmoqchi bo'lganlar uchun:\n\n"
-            f"✅ O'qish va grant imkoniyatlari\n"
-            f"✅ Ish topish yo'llari\n"
-            f"✅ Immigratsiya masalalari\n"
-            f"✅ Hayot haqida foydali ma'lumotlar\n"
-            f"✅ Hammasi oddiy va tushunarli tilda\\!\n\n"
-            f"👇 Quyidagi tugmalarni bosing va kanallarimizga qo'shiling, keyin obunani tekshiring\\!"
+            f"🎉 *KONKURS BOSHLANDI\\!* 🎉\n\n"
+            f"🏆 *Qatnashish uchun avval kanallarimizga obuna bo‘ling\\!* \n"
+            f"💸 *Bu orqali siz 400 000 so‘m yutib olishingiz mumkin\\!* \n\n"
+            f"💰 Bu safar *umumiy yutuq miqdori — 1 000 000 SO‘M\\!* \n"
+            f"👇 Quyidagi tugmalarni bosing, kanallarga obuna bo‘ling\n"
+            f"va so‘ng obunani tekshiring\\!\n\n"
+            f"📌 *To‘liq ma’lumot:* https://t\\.me/simplelearnuz/183\n"
         )
         
         # Send main subscription message
