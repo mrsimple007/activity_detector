@@ -1335,3 +1335,42 @@ async def send_bot_promo(update: Update, context: ContextTypes.DEFAULT_TYPE, pro
             logger.info(f"✅ Sent {promo_type} promo to user {user_id}")
         except Exception as e:
             logger.error(f"❌ Failed to send promo: {e}")
+
+
+async def admin_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show admin dashboard with statistics"""
+    user_id = update.message.from_user.id
+    
+    # Check if user is the specific admin
+    if user_id != 999932510:
+        await update.message.reply_text("❌ Bu buyruq faqat adminlar uchun.")
+        return
+    
+    try:
+        # Get total users count
+        users_result = supabase.table('uzbek_europe_users').select('id', count='exact').execute()
+        total_users = users_result.count if hasattr(users_result, 'count') else len(users_result.data)
+        
+        # Get today's active users
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        activity_result = supabase.table('activity_log')\
+            .select('user_id')\
+            .gte('timestamp', today_start.isoformat())\
+            .execute()
+        
+        unique_active_users = len(set(row['user_id'] for row in activity_result.data))
+        
+        admin_message = (
+            "👑 *Admin Dashboard*\n\n"
+            f"📊 Total Users: {total_users}\n"
+            f"👥 Active Users Today: {unique_active_users}\n"
+        )
+        
+        await update.message.reply_text(
+            admin_message,
+            parse_mode=constants.ParseMode.MARKDOWN_V2
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching admin stats: {e}")
+        await update.message.reply_text("❌ Xatolik yuz berdi.")

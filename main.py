@@ -21,7 +21,7 @@ from handlers.commands import (
     check_subscription_callback,
     handle_menu_callback,
     handle_boost_callback,
-    check_boost_status_callback
+    check_boost_status_callback, admin_dashboard
 )
 from handlers.messages import handle_comment
 from handlers.reactions import handle_reaction
@@ -85,6 +85,7 @@ def main():
     application.add_handler(CallbackQueryHandler(handle_instagram_admin_response, pattern="^instagram_(approve|decline)_"))
     application.add_handler(CommandHandler("send_screenshot", send_screenshot_command))
     application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_screenshot_photo))
+    application.add_handler(CommandHandler("admin", admin_dashboard))
 
 
     # Message and reaction handlers - now for BOTH groups
