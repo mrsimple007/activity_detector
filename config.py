@@ -27,7 +27,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 
 # Bot IDs to filter out
-BOT_IDS_TO_REMOVE = [7967610894, 8437026582, 122290051, 999932510, 8126290272]
+BOT_IDS_TO_REMOVE = [7967610894, 8437026582, 122290051, 999932510, 8126290272, 1952963662]
 
 # Instagram Points
 POINTS_FOR_INSTAGRAM = 25
@@ -102,3 +102,40 @@ QUIZ_SUPABASE_URL = os.getenv("QUIZ_SUPABASE_URL")
 QUIZ_SUPABASE_KEY = os.getenv("QUIZ_SUPABASE_KEY")
 quiz_supabase = create_client(QUIZ_SUPABASE_URL, QUIZ_SUPABASE_KEY)
 
+# Bot promotion messages
+# Bot promotion messages
+SIMPLE_QUIZZER_PROMO = (
+    "🤖 *Bizning boshqa botimiz:*\n\n"
+    "📚 *Simple Quizzer* @SimpleQuizzer\\_bot\n\n"
+    "AI yordamida bir necha soniyada test va quizlar yaratadi\\!\n\n"
+    "• 📝 Hemis testlarini avtomatik quiz formatiga o'tkazadi\n"
+    "• ⚡️ Testlarni o'rganish va yodlashni osonlashtiradi\n"
+    "💡 Yakuniy imtihonlarga tayyorgarlik ko'rayotganlar uchun ideal yechim\\!"
+)
+
+SIMPLE_SLIDES_PROMO = (
+    "🤖 *Bizning boshqa botimiz:*\n\n"
+    "📊 *Simple Slides* @SimplePresentation\\_maker\\_bot\n\n"
+    "AI yordamida bir necha soniyada professional taqdimotlar yaratadi\\!\n\n"
+    "• 🎨 Slayd va prezentatsiyalar\n"
+    "• 📄 Referat va mustaqil ishlar\n"
+    "• 📚 Kurs ishlari va loyihalar\n"
+    "💡 Talabalar va o'quvchilar uchun ajoyib yordam\\!"
+)
+
+BOTH_BOTS_PROMO = (
+    "🤖 *Bizning boshqa botlarimizdan ham foydalanib ko'rishingiz mumkin:*\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "1️⃣ *Simple Quizzer* @SimpleQuizzer\\_bot\n"
+    "📚 AI yordamida bir necha soniyada quizlar yaratadi\\!\n\n"
+    "✅ Hemis testlarini avtomatik quiz formatiga o'tkazadi\n"
+    "✅ 300\\-400 ta savolni qulay bo'limlarga ajratadi\n"
+    "✅ Imtihonlarga tayyorgarlikni osonlashtiradi\n\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "2️⃣ *Simple Slides* @SimplePresentation\\_maker\\_bot\n"
+    "📊 AI yordamida bir necha soniyada taqdimot yaratadi\\!\n\n"
+    "✅ Professional slaydlar va prezentatsiyalar\n"
+    "✅ Referat, mustaqil ish, kurs ishlari\n"
+    "✅ Resume, tezis, maqolalar\n"
+    "💡 *Barcha botlarimiz AI bilan ishlaydi va vaqtingizni tejaydi\\!*"
+)

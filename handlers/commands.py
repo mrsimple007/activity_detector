@@ -131,7 +131,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         join_message = (
             f"🎉 *KONKURS BOSHLANDI\\!* 🎉\n\n"
             f"🏆 *Qatnashish uchun avval kanallarimizga obuna bo‘ling\\!* \n"
-            f"💸 *Bu orqali siz 400 000 so‘m yutib olishingiz mumkin\\!* \n\n"
+            f"💸 *Bu orqali siz konkursga qo'shilasiz\\!* \n\n"
             f"💰 Bu safar *umumiy yutuq miqdori — 1 000 000 SO‘M\\!* \n"
             f"👇 Quyidagi tugmalarni bosing, kanallarga obuna bo‘ling\n"
             f"va so‘ng obunani tekshiring\\!\n\n"
@@ -145,6 +145,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=reply_markup
         )
         
+        await send_bot_promo(update, context, "both")
+
+
         # If coming from referral, send additional bonus message
         if referral_payload:
             bonus_message = (
@@ -359,12 +362,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Quyidagi menyudan foydalaning:"
     )
     
+
+
+
     try:
         await update.message.reply_text(
             welcome_msg, 
             parse_mode=constants.ParseMode.MARKDOWN_V2,
             reply_markup=get_main_menu_keyboard()
         )
+
+        await send_bot_promo(update, context, "both")
+
     except Exception as e:
         logger.error(f"❌ Error sending start message: {e}")
         await update.message.reply_text(welcome_msg.replace('\\', '').replace('*', ''))
@@ -622,6 +631,10 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=reply_markup
             )
+
+            await send_bot_promo(update, context, "slides")
+
+
         
         elif callback_data == "menu_rules":
             # Show rules
@@ -659,6 +672,11 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
+            await send_bot_promo(update, context, "quizzer")
+
+
+
+
     except Exception as e:
         logger.error(f"Error handling menu callback: {e}")
         await query.answer("❌ Xatolik yuz berdi. Qaytadan urinib ko'ring.", show_alert=True)
@@ -1278,3 +1296,42 @@ async def reset_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"❌ Error resetting scores: {e}")
         await update.message.reply_text(f"❌ An error occurred while resetting the log: {e}")
+
+
+async def send_bot_promo(update: Update, context: ContextTypes.DEFAULT_TYPE, promo_type: str):
+    """Send bot promotion message if user is not in bot exclusion list"""
+    from config import BOT_IDS_TO_REMOVE, SIMPLE_QUIZZER_PROMO, SIMPLE_SLIDES_PROMO, BOTH_BOTS_PROMO
+    
+    # Get user_id from either message or callback query
+    if update.message:
+        user_id = update.message.from_user.id
+        chat_id = update.message.chat_id
+    elif update.callback_query:
+        user_id = update.callback_query.from_user.id
+        chat_id = update.callback_query.message.chat_id
+    else:
+        return
+    
+    # Don't send promo to bots or admins
+    if user_id in BOT_IDS_TO_REMOVE or user_id in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]:
+        return
+    
+    # Select appropriate promo message
+    promo_message = None
+    if promo_type == "quizzer":
+        promo_message = SIMPLE_QUIZZER_PROMO
+    elif promo_type == "slides":
+        promo_message = SIMPLE_SLIDES_PROMO
+    elif promo_type == "both":
+        promo_message = BOTH_BOTS_PROMO
+    
+    if promo_message:
+        try:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=promo_message,
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
+            logger.info(f"✅ Sent {promo_type} promo to user {user_id}")
+        except Exception as e:
+            logger.error(f"❌ Failed to send promo: {e}")
