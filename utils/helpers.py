@@ -476,11 +476,36 @@ async def check_and_cleanup_user_referrals(referrer_id: int, context: ContextTyp
     from config import POINTS_FOR_REFERRAL, POINTS_FOR_JOINING
     
     try:
+        logger.info(f"🔍 Starting referral check for user {referrer_id}")
+        
+        # Get referrer info first
+        referrer_info = supabase.table('uzbek_europe_users') \
+            .select('username, first_name') \
+            .eq('user_id', referrer_id) \
+            .limit(1) \
+            .execute()
+        
+        referrer_name = "Unknown"
+        if referrer_info.data:
+            username = referrer_info.data[0].get('username')
+            first_name = referrer_info.data[0].get('first_name', 'User')
+            referrer_name = f"@{username}" if username else first_name
+        
+        logger.info(f"👤 Checking referrals for: {referrer_name} (ID: {referrer_id})")
+        
         # FIRST: Check if the REFERRER is still in both channels
-        referrer_membership = await check_channel_membership_both(referrer_id, context)
+        logger.info(f"🔍 Checking if referrer {referrer_id} is in both channels...")
+        try:
+            referrer_membership = await check_channel_membership_both(referrer_id, context)
+        except Exception as e:
+            logger.error(f"❌ Cannot check referrer membership (likely bot limitation): {e}")
+            # If we can't check, assume they're still members to avoid false positives
+            referrer_membership = {'uzbek_europe': True, 'muslimbek_01': True, 'both': True}
+        
+        logger.info(f"📊 Referrer membership: Uzbek Europe={referrer_membership['uzbek_europe']}, Muslimbek={referrer_membership['muslimbek_01']}")
         
         if not referrer_membership['both']:
-            # Referrer left channels - invalidate ALL their referrals
+            logger.warning(f"⚠️ Referrer {referrer_id} left channels - invalidating ALL their referrals")
             referrals = supabase.table('referrals') \
                 .select('*') \
                 .eq('referrer_id', referrer_id) \
@@ -490,8 +515,11 @@ async def check_and_cleanup_user_referrals(referrer_id: int, context: ContextTyp
             invalid_count = len(referrals.data)
             points_removed = 0
             
+            logger.info(f"🗑️ Found {invalid_count} referrals to invalidate")
+            
             for referral in referrals.data:
                 referred_user_id = referral['referred_user_id']
+                referred_first_name = referral.get('referred_first_name', 'User')
                 
                 # Remove joining points from referred user
                 result = supabase.table('activity_log') \
@@ -519,6 +547,50 @@ async def check_and_cleanup_user_referrals(referrer_id: int, context: ContextTyp
                     .update({'is_valid': False}) \
                     .eq('id', referral['id']) \
                     .execute()
+                
+                # Notify referred user
+                try:
+                    message = (
+                        f"⚠️ *Ogohlantirish\\!*\n\n"
+                        f"Sizni taklif qilgan foydalanuvchi kanallardan chiqib ketganligi sababli, "
+                        f"sizning referal orqali olingan ballaringiz o'chirildi\\.\n\n"
+                        f"❌ Sizning {POINTS_FOR_JOINING} ballingiz o'chirildi\\.\n\n"
+                        f"💡 Lekin tashvishlanmang\\! Siz hali ham tanlovda qatnashishingiz mumkin\\.\n"
+                        f"Boshqa usullar bilan ball to'plashda davom eting\\!"
+                    )
+                    
+                    await context.bot.send_message(
+                        chat_id=referred_user_id,
+                        text=message,
+                        parse_mode=constants.ParseMode.MARKDOWN_V2
+                    )
+                    logger.info(f"   ✅ Notified referred user {referred_user_id} about referrer leaving")
+                except Exception as e:
+                    logger.error(f"   ❌ Failed to notify referred user {referred_user_id}: {e}")
+            
+            # Notify referrer ONCE after processing all referrals
+            try:
+                referrer_message = (
+                    f"⚠️ *Muhim ogohlantirish\\!*\n\n"
+                    f"Siz @Muslimbek\\_01 yoki @Uzbek\\_Europe kanallaridan chiqib ketgansiz\\.\n\n"
+                    f"❌ Barcha referal ballaringiz o'chirildi \\({invalid_count} ta referal\\)\\.\n"
+                    f"💰 Jami o'chirilgan: {points_removed} ball\n\n"
+                    f"💡 Balllarni qaytarish uchun:\n"
+                    f"1\\. Ikkala kanalga ham qayta qo'shiling\n"
+                    f"2\\. /start bosing\n"
+                    f"3\\. Ballaringiz qaytariladi\\!"
+                )
+                
+                await context.bot.send_message(
+                    chat_id=referrer_id,
+                    text=referrer_message,
+                    parse_mode=constants.ParseMode.MARKDOWN_V2
+                )
+                logger.info(f"✅ Notified referrer {referrer_id} about all {invalid_count} invalidated referrals")
+            except Exception as e:
+                logger.error(f"❌ Failed to notify referrer {referrer_id}: {e}")
+            
+            logger.info(f"✅ Invalidated {invalid_count} referrals, removed {points_removed} points")
             
             return {
                 'total_checked': invalid_count,
@@ -535,222 +607,236 @@ async def check_and_cleanup_user_referrals(referrer_id: int, context: ContextTyp
             .eq('referrer_id', referrer_id) \
             .execute()
         
+        total_referrals = len(referrals.data)
+        logger.info(f"📊 Found {total_referrals} total referrals for user {referrer_id}")
+        
         if not referrals.data:
+            logger.info(f"ℹ️ User {referrer_id} has no referrals")
             return {
                 'total_checked': 0,
                 'valid_referrals': 0,
                 'invalid_referrals': 0,
-                'rejoined_referrals': 0,  # NEW
+                'rejoined_referrals': 0,
                 'points_removed': 0,
-                'points_restored': 0  # NEW
+                'points_restored': 0
             }
         
         invalid_count = 0
         valid_count = 0
-        rejoined_count = 0  # NEW
+        rejoined_count = 0
         points_removed = 0
-        points_restored = 0  # NEW
+        points_restored = 0
         
-        # Check each referral individually to avoid batch errors
-        for referral in referrals.data:
+        # Check each referral individually
+        for idx, referral in enumerate(referrals.data, 1):
             referred_user_id = referral['referred_user_id']
             referred_first_name = referral.get('referred_first_name', 'User')
             referrer_first_name = referral.get('referrer_first_name', 'User')
             is_currently_valid = referral.get('is_valid', True)
             
+            logger.info(f"🔍 [{idx}/{total_referrals}] Checking referral: {referred_first_name} (ID: {referred_user_id}), Currently valid: {is_currently_valid}")
+            
             try:
                 # Check membership for this specific user
                 membership = await check_channel_membership_both(referred_user_id, context)
+                logger.info(f"   📊 Membership: Uzbek Europe={membership['uzbek_europe']}, Muslimbek={membership['muslimbek_01']}, Both={membership['both']}")
             except Exception as e:
-                logger.error(f"❌ Failed to check membership for user {referred_user_id}: {e}")
-                # Skip this user if we can't check their membership
+                logger.error(f"   ❌ Failed to check membership for user {referred_user_id}: {e}")
+                # If we can't check, assume they're still members to avoid false positives
+                logger.warning(f"   ⚠️ Assuming user {referred_user_id} is still a member (bot limitation)")
+                valid_count += 1
                 continue
             
-                    # Case 1: User LEFT channels (was valid, now invalid)
-        if not membership['both'] and is_currently_valid:
-            # Remove joining points from referred user
-            result = supabase.table('activity_log') \
-                .delete() \
-                .eq('user_id', referred_user_id) \
-                .eq('activity_type', 'joining') \
-                .execute()
-            
-            joining_removed = len(result.data) if result.data else 0
-            if joining_removed > 0:
-                points_removed += POINTS_FOR_JOINING
-                logger.info(f"💰 Removed {POINTS_FOR_JOINING} joining points from user {referred_user_id}")
-            
-            # Remove referrer's points for this specific referral
-            result = supabase.table('activity_log') \
-                .delete() \
-                .eq('user_id', referrer_id) \
-                .eq('activity_type', 'referral') \
-                .eq('post_id', referred_user_id) \
-                .execute()
-            
-            referral_removed = len(result.data) if result.data else 0
-            if referral_removed > 0:
-                points_removed += POINTS_FOR_REFERRAL
-                logger.info(f"💰 Removed {POINTS_FOR_REFERRAL} referral points from user {referrer_id}")
-            
-            # Mark referral as invalid
-            supabase.table('referrals') \
-                .update({'is_valid': False}) \
-                .eq('id', referral['id']) \
-                .execute()
-            
-            invalid_count += 1
-            logger.info(f"❌ Marked referral as invalid for user {referred_user_id}")
-            
-            # Notify referred user
-            try:
-                if not membership['uzbek_europe'] and not membership['muslimbek_01']:
-                    message = (
-                        f"⚠️ *Ogohlantirish\\!*\n\n"
-                        f"Siz konkurs kanallaridan chiqib ketdingiz\\.\n\n"
-                        f"❌ Sizning {POINTS_FOR_JOINING} ballingiz o'chirildi\\.\n\n"
-                        f"💡 Qayta qo'shilish uchun:\n"
-                        f"• @uzbek\\_europe\n"
-                        f"• @muslimbek\\_01"
-                    )
-                elif not membership['uzbek_europe']:
-                    message = (
-                        f"⚠️ *Ogohlantirish\\!*\n\n"
-                        f"Siz @uzbek\\_europe kanalidan chiqib ketdingiz\\.\n\n"
-                        f"❌ Sizning {POINTS_FOR_JOINING} ballingiz o'chirildi\\.\n\n"
-                        f"💡 Ballni qaytarish uchun kanalga qayta qo'shiling\\!"
-                    )
-                else:
-                    message = (
-                        f"⚠️ *Ogohlantirish\\!*\n\n"
-                        f"Siz @muslimbek\\_01 kanalidan chiqib ketdingiz\\.\n\n"
-                        f"❌ Sizning {POINTS_FOR_JOINING} ballingiz o'chirildi\\.\n\n"
-                        f"💡 Ballni qaytarish uchun kanalga qayta qo'shiling\\!"
-                    )
+            # Case 1: User LEFT channels (was valid, now invalid)
+            if not membership['both'] and is_currently_valid:
+                logger.warning(f"   ⚠️ User {referred_user_id} LEFT channels - removing points")
                 
-                await context.bot.send_message(
-                    chat_id=referred_user_id,
-                    text=message,
-                    parse_mode=constants.ParseMode.MARKDOWN_V2
-                )
-                logger.info(f"✅ Notified referred user {referred_user_id}")
-            except Exception as e:
-                logger.error(f"❌ Failed to notify referred user {referred_user_id}: {e}")
-            
-            # Notify referrer
-            try:
-                referrer_message = (
-                    f"⚠️ *Referal ogohlantirish\\!*\n\n"
-                    f"Sizning referal foydalanuvchingiz "
-                    f"\\({escape_markdown(referred_first_name, version=2)}\\) "
-                    f"@Muslimbek\\_01 yoki @Uzbek\\_Europe kanallaridan chiqib ketdi\\.\n\n"
-                    f"❌ Sizning {POINTS_FOR_REFERRAL} referal ballingiz o‘chirildi\\.\n\n"
-                    f"💡 Agar ular qayta ushbu kanallarga qo‘shilsa\\, ball qaytariladi\\."
-                )
+                # Remove joining points from referred user
+                result = supabase.table('activity_log') \
+                    .delete() \
+                    .eq('user_id', referred_user_id) \
+                    .eq('activity_type', 'joining') \
+                    .execute()
                 
-                await context.bot.send_message(
-                    chat_id=referrer_id,
-                    text=referrer_message,
-                    parse_mode=constants.ParseMode.MARKDOWN_V2
-                )
-                logger.info(f"✅ Notified referrer {referrer_id}")
-            except Exception as e:
-                logger.error(f"❌ Failed to notify referrer {referrer_id}: {e}")
+                joining_removed = len(result.data) if result.data else 0
+                if joining_removed > 0:
+                    points_removed += POINTS_FOR_JOINING
+                    logger.info(f"   💰 Removed {POINTS_FOR_JOINING} joining points from user {referred_user_id}")
+                
+                # Remove referrer's points for this specific referral
+                result = supabase.table('activity_log') \
+                    .delete() \
+                    .eq('user_id', referrer_id) \
+                    .eq('activity_type', 'referral') \
+                    .eq('post_id', referred_user_id) \
+                    .execute()
+                
+                referral_removed = len(result.data) if result.data else 0
+                if referral_removed > 0:
+                    points_removed += POINTS_FOR_REFERRAL
+                    logger.info(f"   💰 Removed {POINTS_FOR_REFERRAL} referral points from user {referrer_id}")
+                
+                # Mark referral as invalid
+                supabase.table('referrals') \
+                    .update({'is_valid': False}) \
+                    .eq('id', referral['id']) \
+                    .execute()
+                
+                invalid_count += 1
+                logger.info(f"   ❌ Marked referral as INVALID")
+                
+                # Notify users (keep existing notification code)
+                try:
+                    if not membership['uzbek_europe'] and not membership['muslimbek_01']:
+                        message = (
+                            f"⚠️ *Ogohlantirish\\!*\n\n"
+                            f"Siz konkurs kanallaridan chiqib ketdingiz\\.\n\n"
+                            f"❌ Sizning {POINTS_FOR_JOINING} ballingiz o'chirildi\\.\n\n"
+                            f"💡 Qayta qo'shilish uchun:\n"
+                            f"• @uzbek\\_europe\n"
+                            f"• @muslimbek\\_01"
+                        )
+                    elif not membership['uzbek_europe']:
+                        message = (
+                            f"⚠️ *Ogohlantirish\\!*\n\n"
+                            f"Siz @uzbek\\_europe kanalidan chiqib ketdingiz\\.\n\n"
+                            f"❌ Sizning {POINTS_FOR_JOINING} ballingiz o'chirildi\\.\n\n"
+                            f"💡 Ballni qaytarish uchun kanalga qayta qo'shiling\\!"
+                        )
+                    else:
+                        message = (
+                            f"⚠️ *Ogohlantirish\\!*\n\n"
+                            f"Siz @muslimbek\\_01 kanalidan chiqib ketdingiz\\.\n\n"
+                            f"❌ Sizning {POINTS_FOR_JOINING} ballingiz o'chirildi\\.\n\n"
+                            f"💡 Ballni qaytarish uchun kanalga qayta qo'shiling\\!"
+                        )
+                    
+                    await context.bot.send_message(
+                        chat_id=referred_user_id,
+                        text=message,
+                        parse_mode=constants.ParseMode.MARKDOWN_V2
+                    )
+                    logger.info(f"   ✅ Notified referred user {referred_user_id}")
+                except Exception as e:
+                    logger.error(f"   ❌ Failed to notify referred user {referred_user_id}: {e}")
+                
+                # Notify referrer
+                try:
+                    referrer_message = (
+                        f"⚠️ *Referal ogohlantirish\\!*\n\n"
+                        f"Sizning referal foydalanuvchingiz "
+                        f"\\({escape_markdown(referred_first_name, version=2)}\\) "
+                        f"@Muslimbek\\_01 yoki @Uzbek\\_Europe kanallaridan chiqib ketdi\\.\n\n"
+                        f"❌ Sizning {POINTS_FOR_REFERRAL} referal ballingiz o'chirildi\\.\n\n"
+                        f"💡 Agar ular qayta ushbu kanallarga qo'shilsa\\, ball qaytariladi\\."
+                    )
+                    
+                    await context.bot.send_message(
+                        chat_id=referrer_id,
+                        text=referrer_message,
+                        parse_mode=constants.ParseMode.MARKDOWN_V2
+                    )
+                    logger.info(f"   ✅ Notified referrer {referrer_id}")
+                except Exception as e:
+                    logger.error(f"   ❌ Failed to notify referrer {referrer_id}: {e}")
 
-        # Case 2: User REJOINED both channels (was invalid, now valid)
-        elif membership['both'] and not is_currently_valid:
-            timestamp = datetime.now(timezone.utc).isoformat()
-            
-            # Restore joining points to referred user
-            supabase.table('activity_log').insert({
-                'user_id': referred_user_id,
-                'username': referral.get('referred_username'),
-                'first_name': referred_first_name,
-                'activity_type': 'joining',
-                'points': POINTS_FOR_JOINING,
-                'timestamp': timestamp,
-                'post_id': None,
-                'post_timestamp': None,
-                'channel_id': None
-            }).execute()
-            points_restored += POINTS_FOR_JOINING
-            logger.info(f"💰 Restored {POINTS_FOR_JOINING} joining points to user {referred_user_id}")
-            
-            # Restore referrer's points
-            supabase.table('activity_log').insert({
-                'user_id': referrer_id,
-                'username': referral.get('referrer_username'),
-                'first_name': referrer_first_name,
-                'activity_type': 'referral',
-                'points': POINTS_FOR_REFERRAL,
-                'timestamp': timestamp,
-                'post_id': referred_user_id,
-                'post_timestamp': None,
-                'channel_id': None
-            }).execute()
-            points_restored += POINTS_FOR_REFERRAL
-            logger.info(f"💰 Restored {POINTS_FOR_REFERRAL} referral points to user {referrer_id}")
-            
-            # Mark referral as valid again
-            supabase.table('referrals') \
-                .update({'is_valid': True}) \
-                .eq('id', referral['id']) \
-                .execute()
-            
-            rejoined_count += 1
-            logger.info(f"✅ Marked referral as valid for user {referred_user_id}")
-            
-            # Notify referred user
-            try:
-                message = (
-                    f"🎉 *Xush kelibsiz\\!*\n\n"
-                    f"Siz kanallarimizga qayta qo'shildingiz\\!\n\n"
-                    f"✅ Sizning {POINTS_FOR_JOINING} ballingiz qaytarildi\\!\n\n"
-                    f"💡 Tanlovda davom eting\\!"
-                )
+            # Case 2: User REJOINED both channels (was invalid, now valid)
+            elif membership['both'] and not is_currently_valid:
+                logger.info(f"   ✅ User {referred_user_id} REJOINED channels - restoring points")
+                timestamp = datetime.now(timezone.utc).isoformat()
                 
-                await context.bot.send_message(
-                    chat_id=referred_user_id,
-                    text=message,
-                    parse_mode=constants.ParseMode.MARKDOWN_V2
-                )
-                logger.info(f"✅ Notified rejoined user {referred_user_id}")
-            except Exception as e:
-                logger.error(f"❌ Failed to notify rejoined user {referred_user_id}: {e}")
-            
-            # Notify referrer
-            try:
-                referrer_message = (
-                    f"🎉 *Ajoyib yangilik\\!*\n\n"
-                    f"Sizning referal foydalanuvchingiz \\({escape_markdown(referred_first_name, version=2)}\\) "
-                    f"kanallarimizga qayta qo'shildi\\!\n\n"
-                    f"✅ Sizning {POINTS_FOR_REFERRAL} referal ballingiz qaytarildi\\!\n\n"
-                    f"🎯 Davom eting\\!"
-                )
+                # Restore joining points to referred user
+                supabase.table('activity_log').insert({
+                    'user_id': referred_user_id,
+                    'username': referral.get('referred_username'),
+                    'first_name': referred_first_name,
+                    'activity_type': 'joining',
+                    'points': POINTS_FOR_JOINING,
+                    'timestamp': timestamp,
+                    'post_id': None,
+                    'post_timestamp': None,
+                    'channel_id': None
+                }).execute()
+                points_restored += POINTS_FOR_JOINING
+                logger.info(f"   💰 Restored {POINTS_FOR_JOINING} joining points to user {referred_user_id}")
                 
-                await context.bot.send_message(
-                    chat_id=referrer_id,
-                    text=referrer_message,
-                    parse_mode=constants.ParseMode.MARKDOWN_V2
-                )
-                logger.info(f"✅ Notified referrer about rejoin {referrer_id}")
-            except Exception as e:
-                logger.error(f"❌ Failed to notify referrer about rejoin {referrer_id}: {e}")
+                # Restore referrer's points
+                supabase.table('activity_log').insert({
+                    'user_id': referrer_id,
+                    'username': referral.get('referrer_username'),
+                    'first_name': referrer_first_name,
+                    'activity_type': 'referral',
+                    'points': POINTS_FOR_REFERRAL,
+                    'timestamp': timestamp,
+                    'post_id': referred_user_id,
+                    'post_timestamp': None,
+                    'channel_id': None
+                }).execute()
+                points_restored += POINTS_FOR_REFERRAL
+                logger.info(f"   💰 Restored {POINTS_FOR_REFERRAL} referral points to user {referrer_id}")
+                
+                # Mark referral as valid again
+                supabase.table('referrals') \
+                    .update({'is_valid': True}) \
+                    .eq('id', referral['id']) \
+                    .execute()
+                
+                rejoined_count += 1
+                logger.info(f"   ✅ Marked referral as VALID")
+                
+                # Notify users (keep existing notification code)
+                try:
+                    message = (
+                        f"🎉 *Xush kelibsiz\\!*\n\n"
+                        f"Siz kanallarimizga qayta qo'shildingiz\\!\n\n"
+                        f"✅ Sizning {POINTS_FOR_JOINING} ballingiz qaytarildi\\!\n\n"
+                        f"💡 Tanlovda davom eting\\!"
+                    )
+                    
+                    await context.bot.send_message(
+                        chat_id=referred_user_id,
+                        text=message,
+                        parse_mode=constants.ParseMode.MARKDOWN_V2
+                    )
+                    logger.info(f"   ✅ Notified rejoined user {referred_user_id}")
+                except Exception as e:
+                    logger.error(f"   ❌ Failed to notify rejoined user {referred_user_id}: {e}")
+                
+                try:
+                    referrer_message = (
+                        f"🎉 *Ajoyib yangilik\\!*\n\n"
+                        f"Sizning referal foydalanuvchingiz \\({escape_markdown(referred_first_name, version=2)}\\) "
+                        f"kanallarimizga qayta qo'shildi\\!\n\n"
+                        f"✅ Sizning {POINTS_FOR_REFERRAL} referal ballingiz qaytarildi\\!\n\n"
+                        f"🎯 Davom eting\\!"
+                    )
+                    
+                    await context.bot.send_message(
+                        chat_id=referrer_id,
+                        text=referrer_message,
+                        parse_mode=constants.ParseMode.MARKDOWN_V2
+                    )
+                    logger.info(f"   ✅ Notified referrer about rejoin {referrer_id}")
+                except Exception as e:
+                    logger.error(f"   ❌ Failed to notify referrer about rejoin {referrer_id}: {e}")
 
-        # Case 3: User still valid (in both channels)
-        elif membership['both'] and is_currently_valid:
-            valid_count += 1
-            logger.info(f"✅ User {referred_user_id} still valid in both channels")
+            # Case 3: User still valid (in both channels)
+            elif membership['both'] and is_currently_valid:
+                valid_count += 1
+                logger.info(f"   ✅ User {referred_user_id} STILL VALID in both channels")
+        
+        logger.info(f"📊 Summary for {referrer_name}: Total={total_referrals}, Valid={valid_count}, Invalid={invalid_count}, Rejoined={rejoined_count}")
+        logger.info(f"💰 Points: Removed={points_removed}, Restored={points_restored}")
         
         return {
             'total_checked': len(referrals.data),
             'valid_referrals': valid_count,
             'invalid_referrals': invalid_count,
-            'rejoined_referrals': rejoined_count,  # NEW
+            'rejoined_referrals': rejoined_count,
             'points_removed': points_removed,
-            'points_restored': points_restored  # NEW
+            'points_restored': points_restored
         }
         
     except Exception as e:
-        logger.error(f"❌ Error checking user referrals: {e}")
+        logger.exception(f"❌ Error checking user referrals for {referrer_id}: {e}")
         return None
