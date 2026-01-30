@@ -48,7 +48,7 @@ ADMIN_USERNAME_2="@Uzbek\\_europe\\_admin"
 #                        8126290272]
 
 # Admin for Instagram verification
-INSTAGRAM_ADMIN_IDS = [8437026582, 122290051]
+INSTAGRAM_ADMIN_IDS = [8437026582, 122290051, 999932510]
 
 
 # Scoring System with time-based multipliers

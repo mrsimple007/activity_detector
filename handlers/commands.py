@@ -6,6 +6,7 @@ from telegram.ext import ContextTypes
 from telegram.helpers import escape_markdown
 
 from config import (
+    INSTAGRAM_ADMIN_IDS,
     supabase, 
     ADMIN_USER_ID_EU,
     ADMIN_USER_ID_EU_2,
@@ -459,6 +460,9 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 
                 uzbek_channel = escape_markdown("@uzbek_europe", version=2)
                 muslimbek_channel = escape_markdown("@muslimbek_01", version=2)
+                
+                # NEW: Get referral breakdown
+                referral_breakdown = stats.get('referral_breakdown', {'valid': 0, 'invalid': 0})
 
                 text = (
                     f"📊 *Sizning ko'rsatkichlaringiz:*\n\n"
@@ -468,17 +472,19 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"🇩🇪 *Uzbek Europe \\({uzbek_channel}\\) kanalida:*\n"
                     f"📝 Komment ballari: {uzbek_europe['comment_points']}\n"
                     f"❤️ Reaksiya ballari: {uzbek_europe['reaction_points']}\n"
-                    f"📱 Instagram ballari: {uzbek_europe['instagram_points']}\n"  # Added
+                    f"📱 Instagram ballari: {uzbek_europe['instagram_points']}\n"
                     f"🚀 Boost ballari: {uzbek_europe['boost_points']}\n\n"
                     f"📚 *Muslimbek \\({muslimbek_channel}\\) kanalida:*\n"
                     f"📝 Komment ballari: {muslimbek['comment_points']}\n"
                     f"❤️ Reaksiya ballari: {muslimbek['reaction_points']}\n"
-                    f"📱 Instagram ballari: {muslimbek['instagram_points']}\n"  # Added
+                    f"📱 Instagram ballari: {muslimbek['instagram_points']}\n"
                     f"🚀 Boost ballari: {muslimbek['boost_points']}\n\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🎯 Quiz ballari: {stats['quiz_points']}\n"
                     f"👥 Referal ballari: {stats['referral_points']}\n"
                     f"🔗 Referal takliflar: {stats['referral_count']} ta\n"
+                    f"   ✅ Faol: {referral_breakdown['valid']} ta\n"  
+                    f"   ❌ Nofaol: {referral_breakdown['invalid']} ta\n" 
                     f"🏆 O'rin: \\#{stats['position']}\n\n"
                 )
                 
@@ -1055,6 +1061,12 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
         welcome_msg = (
             f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
             f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
+            f"*1 MILLION SO'MLIK* tanlov endilikda @Uzbek\\_Europe va @Muslimbek\\_01 tomonidan olib boriladi\\.\n\n"
+            f"🎯 *Qanday ishtirok etish mumkin:*\n"
+            f"• @SimpleQuizzer\\_bot orqali quizlar yarating\n"
+            f"• Quizlarni yeching va ball to'plang\n"
+            f"• Kanallarimizda aktiv bo'ling \\(komment, reaksiya, ulashish\\)\n"
+            f"• Do'stlaringizni taklif qiling va ballar ishlang\n\n"
             f"Quyidagi menyudan foydalaning:"
         )
         await query.edit_message_text(
@@ -1374,3 +1386,170 @@ async def admin_dashboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"❌ Error fetching admin stats: {e}")
         await update.message.reply_text("❌ Xatolik yuz berdi.")
+
+async def check_user_referral_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    from utils.helpers import check_and_cleanup_user_referrals
+    """Admin command to check a specific user's referrals and cleanup invalid ones"""
+    
+    admin_id = update.message.from_user.id
+    if admin_id not in INSTAGRAM_ADMIN_IDS:
+        await update.message.reply_text("❌ Bu buyruq faqat adminlar uchun.")
+        return
+
+    if not context.args:
+        await update.message.reply_text(
+            "❌ Foydalanuvchi ID kiritilmagan.\n"
+            "Ishlatish: /check 6746520007 yoki /check all"
+        )
+        return
+
+    try:
+        # Check if it's "all" or a specific user ID
+        if context.args[0].lower() == "all":
+            await update.message.reply_text("🔄 Barcha foydalanuvchilar tekshirilmoqda...")
+            
+            # Get all users who have made referrals
+            referrers = supabase.table("referrals") \
+                .select("referrer_id") \
+                .execute()
+            
+            unique_referrer_ids = list(set([r['referrer_id'] for r in referrers.data]))
+            
+            total_checked = 0
+            total_invalid = 0
+            total_rejoined = 0  # NEW
+            total_points_removed = 0
+            total_points_restored = 0  # NEW
+            detailed_reports = []  # NEW
+            
+            for referrer_id in unique_referrer_ids:
+                result = await check_and_cleanup_user_referrals(referrer_id, context)
+                if result:
+                    total_checked += result['total_checked']
+                    total_invalid += result['invalid_referrals']
+                    total_rejoined += result['rejoined_referrals']  # NEW
+                    total_points_removed += result['points_removed']
+                    total_points_restored += result['points_restored']  # NEW
+                    
+                    # Collect detailed info if there were changes - NEW
+                    if result['invalid_referrals'] > 0 or result['rejoined_referrals'] > 0:
+                        user_info = supabase.table("uzbek_europe_users") \
+                            .select("username, first_name") \
+                            .eq("user_id", referrer_id) \
+                            .limit(1) \
+                            .execute()
+                        
+                        display_name = "Unknown"
+                        if user_info.data:
+                            username = user_info.data[0].get("username")
+                            first_name = user_info.data[0].get("first_name", "User")
+                            display_name = f"@{username}" if username else first_name
+                        
+                        detailed_reports.append({
+                            'user_id': referrer_id,
+                            'display_name': display_name,
+                            'invalid': result['invalid_referrals'],
+                            'rejoined': result['rejoined_referrals'],
+                            'removed': result['points_removed'],
+                            'restored': result['points_restored']
+                        })
+            
+            # Main summary
+            summary = (
+                f"✅ *Tekshiruv tugadi\\!*\n\n"
+                f"👥 Tekshirilgan foydalanuvchilar: {len(unique_referrer_ids)}\n"
+                f"📊 Tekshirilgan referallar: {total_checked}\n"
+                f"❌ Noto'g'ri referallar: {total_invalid}\n"
+                f"🔄 Qayta qo'shilganlar: {total_rejoined}\n"  # NEW
+                f"💰 O'chirilgan ballar: {total_points_removed}\n"
+                f"✨ Qaytarilgan ballar: {total_points_restored}"  # NEW
+            )
+            
+            await update.message.reply_text(
+                summary,
+                parse_mode=constants.ParseMode.MARKDOWN_V2
+            )
+            
+            # Send detailed report if there were changes - NEW
+            if detailed_reports:
+                detail_msg = "📋 *Batafsil hisobot:*\n\n"
+                for report in detailed_reports[:20]:  # Limit to first 20
+                    detail_msg += (
+                        f"👤 {escape_markdown(report['display_name'], version=2)}\n"
+                        f"   ID: `{report['user_id']}`\n"
+                    )
+                    if report['invalid'] > 0:
+                        detail_msg += f"   ❌ Chiqdi: {report['invalid']} ta \\(\\-{report['removed']} ball\\)\n"
+                    if report['rejoined'] > 0:
+                        detail_msg += f"   ✅ Qaytdi: {report['rejoined']} ta \\(\\+{report['restored']} ball\\)\n"
+                    detail_msg += "\n"
+                
+                if len(detailed_reports) > 20:
+                    detail_msg += f"\n_\\.\\.\\. va yana {len(detailed_reports) - 20} ta foydalanuvchi_"
+                
+                await update.message.reply_text(
+                    detail_msg,
+                    parse_mode=constants.ParseMode.MARKDOWN_V2
+                )
+            
+            return
+        else:
+            target_user_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Noto'g'ri foydalanuvchi ID.")
+        return
+
+    await update.message.reply_text(f"🔄 Foydalanuvchi {target_user_id} referallari tekshirilmoqda...")
+
+    try:
+        result = await check_and_cleanup_user_referrals(target_user_id, context)
+        
+        if result is None:
+            await update.message.reply_text("❌ Tekshiruv vaqtida xatolik yuz berdi.")
+            return
+        
+        # Get user info
+        user_info = supabase.table("uzbek_europe_users") \
+            .select("username, first_name") \
+            .eq("user_id", target_user_id) \
+            .limit(1) \
+            .execute()
+
+        display_name = "Unknown"
+        if user_info.data:
+            username = user_info.data[0].get("username")
+            first_name = user_info.data[0].get("first_name", "User")
+            display_name = f"@{username}" if username else first_name
+
+        message = (
+            f"👤 *Foydalanuvchi:* {escape_markdown(display_name, version=2)}\n"
+            f"🆔 ID: `{target_user_id}`\n\n"
+            f"📊 *Tekshiruv natijalari:*\n"
+            f"✅ To'g'ri referallar: {result['valid_referrals']}\n"
+            f"❌ Noto'g'ri referallar: {result['invalid_referrals']}\n"
+            f"🔄 Qayta qo'shilganlar: {result['rejoined_referrals']}\n"  # NEW
+            f"💰 O'chirilgan ballar: {result['points_removed']}\n"
+            f"✨ Qaytarilgan ballar: {result['points_restored']}\n\n"  # NEW
+        )
+        
+        if result['invalid_referrals'] > 0:
+            message += (
+                "⚠️ Ba'zi referallar kanallardan chiqib ketgan\\.\n"
+                "Ballar o'chirildi va bildirishnomalar yuborildi\\.\n\n"
+            )
+        if result['rejoined_referrals'] > 0:  # NEW
+            message += (
+                "🎉 Ba'zi referallar qayta qo'shildi\\!\n"
+                "Ballar qaytarildi va bildirishnomalar yuborildi\\.\n\n"
+            )
+        if result['invalid_referrals'] == 0 and result['rejoined_referrals'] == 0:
+            message += "✅ *Holat:* Barcha referallar faol\\!"
+
+        await update.message.reply_text(
+            message,
+            parse_mode=constants.ParseMode.MARKDOWN_V2
+        )
+
+    except Exception as e:
+        logger.exception(e)
+        await update.message.reply_text("❌ Tekshiruv vaqtida xatolik yuz berdi.")
