@@ -1,0 +1,22 @@
+# .slugignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.git/
+.gitignore
+.env.example
+README.md
+*.md
+.vscode/
+.idea/
+tests/
+test_*.py
+*.log
+.DS_Store
