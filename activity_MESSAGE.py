@@ -53,23 +53,19 @@ def generate_message(name):
     escaped_name = escape_markdown_v2(name)
 
     return (
-        f"Assalomu alaykum, {escaped_name}\\! 👋\n\n"
-        "⚠️ *Muhim eʼlon*\n\n"
-        "Soʻnggi paytlarda ayrim foydalanuvchilar *referal ballarni olgandan soʻng* "
-        "kanaldan chiqib ketish holatlari kuzatilmoqda\\.\n\n"
-        "Shu sababli bugundan boshlab *referal tizimi qatʼiy tekshiriladi* 🔍\n\n"
-        "📌 *Eʼtibor bering:*\n"
-        "— Agar siz taklif qilgan foydalanuvchi kanallarimizda *qolmagan bo‘lsa*,\n"
-        "— unga berilgan referal ballar *avtomatik ravishda kamaytiriladi* ❌\n\n"
-        "✅ Referal ballar faqatgina taklif qilingan foydalanuvchi "
-        "*kanalga aʼzo bo‘lib turgan taqdirda* saqlanadi\\.\n\n"
-        "📢 Iltimos, referallaringizga kanallarda "
-        "\\(@Muslimbek\\_01 va @Uzbek\\_Europe\\) "
-        "*doimiy aʼzo bo‘lib qolishlarini* eslatib qo‘ying\\.\n\n"
-        "Bu choralar konkursda *halollik va adolatni* saqlash uchun joriy qilindi 🤝\n\n"
-        "Tushunganingiz uchun rahmat\\! 🚀"
+        f"Assalomu aleykum, {escaped_name}\\! 👋\n\n"
+        "🎯 *Bugun kechgi 21:00 da biz navbatdagi quiz musobaqasini o'tkizamiz\\!*\n\n"
+        "Albatta, g'oliblarga *pul mukofotlarimiz* va ushbu [konkursda](https://t\\.me/uzbek_europe/213) *qo'shimcha ballar* beramiz\\! 🔥\n\n"
+        "📝 *Ishtirok etish uchun:*\n"
+        "1\\. @Muslimbek\\_01\\ kanaliga kiring\n"
+        "2\\. Oxirgi postni toping\n"        
+        "3\\. Kommentga \\+ belgisini yozing\n"
+        "4\\. Biz sizni ishtirokchilar ro'yxatiga qo'shamiz\\!\n\n"
+        "⏰ *Vaqt:* Bugun soat 21:00\n"
+        "🏆 *Mukofotlar:* Pul \\+ konkurs ballari\n\n"
+        "Ko'rishguncha\\! 🚀"
+        "Botni boshlash uchun /start ni bosing\\."
     )
-
 
 
 async def send_message_safe(session, bot_token, chat_id, message):

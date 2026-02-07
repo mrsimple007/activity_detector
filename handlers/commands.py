@@ -187,6 +187,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if is_registered or already_referred:
                     logger.info(f"⚠️ User {user_id} already registered or referred")
                     save_user_to_db(user_id, username, first_name, last_name)
+                    from utils.helpers import notify_admin_new_user
+                    context.application.create_task(
+                        notify_admin_new_user(context, user_id, username, first_name, referrer_id)
+                    )
+                    
+                    
                     await update.message.reply_text(
                         "👋 Xush kelibsiz\\!\n\n"
                         "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
@@ -205,7 +211,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Save user to DB first
             save_user_to_db(user_id, username, first_name, last_name)
-            
+            from utils.helpers import notify_admin_new_user
+            context.application.create_task(
+                notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
+            )            
             # OPTIMIZATION: Fetch referrer info and count in parallel
             try:
                 referrer_info_result = supabase.table('uzbek_europe_users').select('username, first_name').eq('user_id', referrer_id).limit(1).execute()
@@ -350,7 +359,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     save_user_to_db(user_id, username, first_name, last_name)
-    
+    from utils.helpers import notify_admin_new_user
+    context.application.create_task(
+        notify_admin_new_user(context, user_id, username, first_name, referrer_id)
+    )    
     welcome_msg = (
         f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
         f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
@@ -908,6 +920,11 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
                 if is_registered or already_referred:
                     logger.info(f"⚠️ User {user_id} already registered or referred")
                     save_user_to_db(user_id, username, first_name, last_name)
+                    from utils.helpers import notify_admin_new_user
+                    context.application.create_task(
+                        notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
+                    )
+                    
                     await query.edit_message_text(
                         "👋 Xush kelibsiz\\!\n\n"
                         "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
@@ -927,7 +944,10 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
             
             # Save user to DB
             save_user_to_db(user_id, username, first_name, last_name)
-            
+            from utils.helpers import notify_admin_new_user
+            context.application.create_task(
+                notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
+            )            
             # OPTIMIZATION: Fetch referrer info and count in parallel
             try:
                 referrer_info_result = supabase.table('uzbek_europe_users').select('username, first_name').eq('user_id', referrer_id).limit(1).execute()
@@ -1045,6 +1065,10 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
         else:
             # Regular user without valid referral
             save_user_to_db(user_id, username, first_name, last_name)
+            from utils.helpers import notify_admin_new_user
+            context.application.create_task(
+                notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
+            )
             welcome_msg = (
                 f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
                 f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
@@ -1058,6 +1082,11 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
     else:
         # Regular user without referral
         save_user_to_db(user_id, username, first_name, last_name)
+        from utils.helpers import notify_admin_new_user
+        context.application.create_task(
+            notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
+        )
+        
         welcome_msg = (
             f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
             f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"

@@ -859,3 +859,60 @@ async def check_and_cleanup_user_referrals(referrer_id: int, context: ContextTyp
     except Exception as e:
         logger.exception(f"❌ Error checking user referrals for {referrer_id}: {e}")
         return None
+
+async def notify_admin_new_user(context: ContextTypes.DEFAULT_TYPE, user_id: int, username: str, 
+                                first_name: str, referrer_id: int = None):
+    """Notify admin about new user registration"""
+    try:
+        from config import NOTIFICATION_ADMIN_ID
+        
+        # Get total user count
+        total_users_result = supabase.table('uzbek_europe_users').select('user_id', count='exact').execute()
+        total_users = total_users_result.count if hasattr(total_users_result, 'count') else len(total_users_result.data)
+        
+        # Format user info
+        username_str = f"@{username}" if username else "No username"
+        
+        # Build message based on whether it's a referral or regular user
+        if referrer_id:
+            # Get referrer info
+            referrer_info = supabase.table('uzbek_europe_users')\
+                .select('username, first_name')\
+                .eq('user_id', referrer_id)\
+                .limit(1)\
+                .execute()
+            
+            referrer_name = "Unknown"
+            if referrer_info.data:
+                ref_username = referrer_info.data[0].get('username')
+                ref_first_name = referrer_info.data[0].get('first_name', 'User')
+                referrer_name = f"@{ref_username}" if ref_username else ref_first_name
+            
+            admin_message = (
+                f"🆕 *New User \\(Referral\\)\\!*\n\n"
+                f"👤 *Name:* {escape_markdown(first_name or 'No name', version=2)}\n"
+                f"🔤 *Username:* {escape_markdown(username_str, version=2)}\n"
+                f"🆔 *User ID:* `{user_id}`\n\n"
+                f"🔗 *Referred by:* {escape_markdown(referrer_name, version=2)}\n"
+                f"💰 *Referrer ID:* `{referrer_id}`\n\n"
+                f"📊 *Total Users:* {total_users}"
+            )
+        else:
+            admin_message = (
+                f"🆕 *New User \\(Regular\\)\\!*\n\n"
+                f"👤 *Name:* {escape_markdown(first_name or 'No name', version=2)}\n"
+                f"🔤 *Username:* {escape_markdown(username_str, version=2)}\n"
+                f"🆔 *User ID:* `{user_id}`\n\n"
+                f"📊 *Total Users:* {total_users}"
+            )
+        
+        # Send to admin
+        await context.bot.send_message(
+            chat_id=NOTIFICATION_ADMIN_ID,
+            text=admin_message,
+            parse_mode=constants.ParseMode.MARKDOWN_V2
+        )
+        logger.info(f"✅ Sent new user notification to admin {NOTIFICATION_ADMIN_ID}")
+    
+    except Exception as e:
+        logger.error(f"❌ Error in notify_admin_new_user: {e}")
