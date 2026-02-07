@@ -34,7 +34,7 @@ POINTS_FOR_INSTAGRAM = 25
 INSTAGRAM_MUSLIMBEK = "https://instagram.com/_muslimbek_01/"
 INSTAGRAM_UZBEK_EUROPE = "https://www.instagram.com/uzbek_german/"
 
-
+NOTIFICATION_ADMIN_ID="999932510"
 
 ADMIN_USERNAME="@Simplelearn\\_main\\_admin"
 ADMIN_USERNAME_2="@Uzbek\\_europe\\_admin"

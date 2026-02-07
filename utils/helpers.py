@@ -219,15 +219,15 @@ def save_user_to_db(user_id: int, username: str, first_name: str, last_name: str
             # Update existing user
             logger.info(f"🔄 Updating existing user {user_id}")
             supabase.table('uzbek_europe_users').update(user_data).eq('user_id', user_id).execute()
+            return False  # Not a new user
         else:
             user_data['created_at'] = timestamp
             supabase.table('uzbek_europe_users').insert(user_data).execute()
+            return True  # New user
         
-        return True
     except Exception as e:
         logger.error(f"❌ Error saving user to database: {e}")
         return False
-    
 
 
 def get_user_stats(user_id: int):

@@ -106,7 +106,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"🔗 Referral payload: {referral_payload}")
     
     # Check channel membership for ALL users
-    from utils.helpers import check_channel_membership
+    from utils.helpers import check_channel_membership, notify_admin_new_user
     is_member = await check_channel_membership(user_id, context)
     
     if not is_member:
@@ -131,12 +131,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         join_message = (
             f"🎉 *KONKURS BOSHLANDI\\!* 🎉\n\n"
-            f"🏆 *Qatnashish uchun avval kanallarimizga obuna bo‘ling\\!* \n"
+            f"🏆 *Qatnashish uchun avval kanallarimizga obuna bo'ling\\!* \n"
             f"💸 *Bu orqali siz konkursga qo'shilasiz\\!* \n\n"
-            f"💰 Bu safar *umumiy yutuq miqdori — 1 000 000 SO‘M\\!* \n"
-            f"👇 Quyidagi tugmalarni bosing, kanallarga obuna bo‘ling\n"
-            f"va so‘ng obunani tekshiring\\!\n\n"
-            f"📌 *To‘liq ma’lumot:* https://t\\.me/simplelearnuz/183\n"
+            f"💰 Bu safar *umumiy yutuq miqdori — 1 000 000 SO'M\\!* \n"
+            f"👇 Quyidagi tugmalarni bosing, kanallarga obuna bo'ling\n"
+            f"va so'ng obunani tekshiring\\!\n\n"
+            f"📌 *To'liq ma'lumot:* https://t\\.me/simplelearnuz/183\n"
         )
         
         # Send main subscription message
@@ -147,7 +147,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         await send_bot_promo(update, context, "both")
-
 
         # If coming from referral, send additional bonus message
         if referral_payload:
@@ -187,12 +186,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if is_registered or already_referred:
                     logger.info(f"⚠️ User {user_id} already registered or referred")
                     save_user_to_db(user_id, username, first_name, last_name)
-                    from utils.helpers import notify_admin_new_user
-                    context.application.create_task(
-                        notify_admin_new_user(context, user_id, username, first_name, referrer_id)
-                    )
-                    
-                    
                     await update.message.reply_text(
                         "👋 Xush kelibsiz\\!\n\n"
                         "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
@@ -211,10 +204,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Save user to DB first
             save_user_to_db(user_id, username, first_name, last_name)
-            from utils.helpers import notify_admin_new_user
+            
+            # Notify admin about new referral user
             context.application.create_task(
-                notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
-            )            
+                notify_admin_new_user(context, user_id, username, first_name, referrer_id)
+            )
+            
             # OPTIMIZATION: Fetch referrer info and count in parallel
             try:
                 referrer_info_result = supabase.table('uzbek_europe_users').select('username, first_name').eq('user_id', referrer_id).limit(1).execute()
@@ -358,11 +353,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-    save_user_to_db(user_id, username, first_name, last_name)
-    from utils.helpers import notify_admin_new_user
-    context.application.create_task(
-        notify_admin_new_user(context, user_id, username, first_name, referrer_id)
-    )    
+    # Only notify admin if user is actually NEW
+    is_new_user = save_user_to_db(user_id, username, first_name, last_name)
+    
+    if is_new_user:
+        # Notify admin about new regular user
+        context.application.create_task(
+            notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
+        )
+    
     welcome_msg = (
         f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
         f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
@@ -375,9 +374,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Quyidagi menyudan foydalaning:"
     )
     
-
-
-
     try:
         await update.message.reply_text(
             welcome_msg, 
@@ -872,7 +868,7 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
     
     user_id = query.from_user.id
     
-    from utils.helpers import check_channel_membership, get_referrer_from_payload
+    from utils.helpers import check_channel_membership, get_referrer_from_payload, notify_admin_new_user
     
     logger.info(f"🔔 Main subscription check callback from user {user_id}")
     
@@ -920,11 +916,6 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
                 if is_registered or already_referred:
                     logger.info(f"⚠️ User {user_id} already registered or referred")
                     save_user_to_db(user_id, username, first_name, last_name)
-                    from utils.helpers import notify_admin_new_user
-                    context.application.create_task(
-                        notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
-                    )
-                    
                     await query.edit_message_text(
                         "👋 Xush kelibsiz\\!\n\n"
                         "Siz allaqachon botga qo'shilgansiz va ballaringiz hisobga olingan\\.\n\n"
@@ -944,10 +935,12 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
             
             # Save user to DB
             save_user_to_db(user_id, username, first_name, last_name)
-            from utils.helpers import notify_admin_new_user
+            
+            # Notify admin about new referral user
             context.application.create_task(
-                notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
-            )            
+                notify_admin_new_user(context, user_id, username, first_name, referrer_id)
+            )
+            
             # OPTIMIZATION: Fetch referrer info and count in parallel
             try:
                 referrer_info_result = supabase.table('uzbek_europe_users').select('username, first_name').eq('user_id', referrer_id).limit(1).execute()
@@ -1064,11 +1057,15 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
             )
         else:
             # Regular user without valid referral
-            save_user_to_db(user_id, username, first_name, last_name)
-            from utils.helpers import notify_admin_new_user
-            context.application.create_task(
-                notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
-            )
+            # Only notify admin if user is actually NEW
+            is_new_user = save_user_to_db(user_id, username, first_name, last_name)
+            
+            if is_new_user:
+                # Notify admin about new regular user
+                context.application.create_task(
+                    notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
+                )
+            
             welcome_msg = (
                 f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
                 f"🇺🇿 *SimpleQuizzer Tanlovi\\!* 🔥\n\n"
@@ -1080,12 +1077,14 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
                 reply_markup=get_main_menu_keyboard()
             )
     else:
-        # Regular user without referral
-        save_user_to_db(user_id, username, first_name, last_name)
-        from utils.helpers import notify_admin_new_user
-        context.application.create_task(
-            notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
-        )
+        # Only notify admin if user is actually NEW
+        is_new_user = save_user_to_db(user_id, username, first_name, last_name)
+        
+        if is_new_user:
+            # Notify admin about new regular user
+            context.application.create_task(
+                notify_admin_new_user(context, user_id, username, first_name, referrer_id=None)
+            )
         
         welcome_msg = (
             f"👋 Salom, {escape_markdown(first_name, version=2)}\\!\n\n"
