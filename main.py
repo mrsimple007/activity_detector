@@ -22,8 +22,9 @@ from handlers.commands import (
     handle_menu_callback,
     handle_boost_callback,
     check_boost_status_callback, admin_dashboard,
-    check_user_referral_command  
+    check_user_referral_command,
 )
+from handlers.youtube_handler import *
 from handlers.messages import handle_comment
 from handlers.reactions import handle_reaction
 from handlers.webapp_handler import (
@@ -88,11 +89,16 @@ def main():
     application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_screenshot_photo))
     application.add_handler(CommandHandler("admin", admin_dashboard))
     application.add_handler(CommandHandler("check", check_user_referral_command))
+    application.add_handler(CallbackQueryHandler(show_youtube_menu, pattern="^youtube_menu$"))
+    application.add_handler(CallbackQueryHandler(handle_youtube_request, pattern="^youtube_(muslimbek|uzbek_europe)$"))
+    application.add_handler(CallbackQueryHandler(handle_youtube_admin_response, pattern="^youtube_(approve|decline)_"))
 
 
     # Message and reaction handlers - now for BOTH groups
     application.add_handler(MessageHandler(combined_group_filter & filters.TEXT & ~filters.COMMAND, handle_comment))
     application.add_handler(MessageReactionHandler(handle_reaction, chat_id=[GROUP_CHAT_ID, GROUP_CHAT_ID_2]))
+    application.add_handler(CommandHandler("send_youtube_screenshot", send_youtube_screenshot_command))
+    application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, handle_youtube_screenshot_photo))
 
     logger.info("✅ All handlers registered for both groups")
     application.run_polling(allowed_updates=[Update.MESSAGE, Update.MESSAGE_REACTION, Update.CALLBACK_QUERY])

@@ -64,32 +64,39 @@ def get_participate_keyboard(user_id: int, bot_username: str):
     referral_link = generate_referral_link(user_id, bot_username)
     share_text = f"🎉 Bu mening havolam. Qo'shiling va 400,000 so'm yutib oling!\n\n🇩🇪 Simple Quizzer tanlovida ishtirok eting!\n\n Ro'yxatdan o'tib menga 5 ball, o'zingizga esa 3 ball ishlab oling👇\n {referral_link}"
     
-    # URL encode the share text
     import urllib.parse
     encoded_text = urllib.parse.quote(share_text)
     share_url = f"https://t.me/share/url?url={urllib.parse.quote(referral_link)}&text={encoded_text}"
     
     keyboard = [
         [InlineKeyboardButton("📤 Ulashish", url=share_url)],
-        [InlineKeyboardButton("📱 Instagramda ball olish", callback_data="instagram_menu")],  
+        [
+            InlineKeyboardButton("📱 Instagram", callback_data="instagram_menu"),
+            InlineKeyboardButton("📺 YouTube", callback_data="youtube_menu")
+        ],
         [InlineKeyboardButton("🚀 Boost qilish", callback_data="boost_channel")],
-        [InlineKeyboardButton("👤 Mening profilim", callback_data="menu_profile")],
-        [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
+        [
+            InlineKeyboardButton("👤 Profilim", callback_data="menu_profile"),
+            InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")
+        ],
         [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
     ]
     return InlineKeyboardMarkup(keyboard)
-
 
 def get_profile_keyboard(user_id: int, bot_username: str):
     """Generate profile menu keyboard with referral info button"""
     keyboard = [
         [InlineKeyboardButton("📤 Referal ma'lumot", callback_data="show_referral_info")],
         [InlineKeyboardButton("🚀 Boost qilish", callback_data="boost_channel")],
-        [InlineKeyboardButton("📱 Instagramda ball olish", callback_data="instagram_menu")],  
+        [
+            InlineKeyboardButton("📱 Instagram", callback_data="instagram_menu"),
+            InlineKeyboardButton("📺 YouTube", callback_data="youtube_menu")
+        ],
         [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
         [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
     ]
     return InlineKeyboardMarkup(keyboard)
+
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -469,7 +476,7 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 uzbek_channel = escape_markdown("@uzbek_europe", version=2)
                 muslimbek_channel = escape_markdown("@muslimbek_01", version=2)
                 
-                # NEW: Get referral breakdown
+                # Get referral breakdown
                 referral_breakdown = stats.get('referral_breakdown', {'valid': 0, 'invalid': 0})
 
                 text = (
@@ -488,11 +495,12 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"📱 Instagram ballari: {muslimbek['instagram_points']}\n"
                     f"🚀 Boost ballari: {muslimbek['boost_points']}\n\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📺 YouTube ballari: {stats['youtube_points']}\n"
                     f"🎯 Quiz ballari: {stats['quiz_points']}\n"
                     f"👥 Referal ballari: {stats['referral_points']}\n"
                     f"🔗 Referal takliflar: {stats['referral_count']} ta\n"
-                    f"   ✅ Faol: {referral_breakdown['valid']} ta\n"  
-                    f"   ❌ Nofaol: {referral_breakdown['invalid']} ta\n" 
+                    f"   ✅ Faol: {referral_breakdown['valid']} ta\n"
+                    f"   ❌ Nofaol: {referral_breakdown['invalid']} ta\n"
                     f"🏆 O'rin: \\#{stats['position']}\n\n"
                 )
                 
@@ -510,7 +518,6 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=get_profile_keyboard(user_id, bot_username)
             )
-
         
         if callback_data == "menu_leaderboard":
             # Show leaderboard - ONLY LAST 30 DAYS

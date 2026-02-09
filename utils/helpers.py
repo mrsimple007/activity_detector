@@ -260,6 +260,7 @@ def get_user_stats(user_id: int):
         # Global statistics (not channel-specific)
         referral_points = 0
         quiz_points = 0
+        youtube_points = 0  # YouTube is global, not per-channel
         
         for row in result.data:
             points = row.get('points', 0)
@@ -280,7 +281,9 @@ def get_user_stats(user_id: int):
             elif activity_type == 'quiz':
                 quiz_points += points
             elif activity_type == 'joining':
-                referral_points += points  # Joining points count as referral category
+                referral_points += points
+            elif activity_type == 'youtube':
+                youtube_points += points
             
             # Channel-specific activities
             if channel_id in stats_by_channel:
@@ -293,7 +296,7 @@ def get_user_stats(user_id: int):
                 elif activity_type == 'instagram':
                     stats_by_channel[channel_id]['instagram_points'] += points
         
-        # Get referral count and breakdown - NEW
+        # Get referral count and breakdown
         referral_result = supabase.table('referrals').select('is_valid').eq('referrer_id', user_id).execute()
         referral_count = len(referral_result.data)
         
@@ -322,8 +325,9 @@ def get_user_stats(user_id: int):
             'total_points': total_points,
             'referral_points': referral_points,
             'quiz_points': quiz_points,
+            'youtube_points': youtube_points,
             'referral_count': referral_count,
-            'referral_breakdown': {  # NEW
+            'referral_breakdown': {
                 'valid': valid_referrals,
                 'invalid': invalid_referrals
             },

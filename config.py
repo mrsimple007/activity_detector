@@ -36,8 +36,18 @@ INSTAGRAM_UZBEK_EUROPE = "https://www.instagram.com/uzbek_german/"
 
 NOTIFICATION_ADMIN_ID="999932510"
 
+# Admin for Instagram verification
+INSTAGRAM_ADMIN_IDS = [8437026582, 122290051, 999932510]
+
 ADMIN_USERNAME="@Simplelearn\\_main\\_admin"
 ADMIN_USERNAME_2="@Uzbek\\_europe\\_admin"
+
+# YouTube Points
+POINTS_FOR_YOUTUBE = 50
+YOUTUBE_MUSLIMBEK = "https://www.youtube.com/@MuslimbekAbdurakhimov"
+
+# Reuse same admin IDs for YouTube approval
+YOUTUBE_ADMIN_IDS = INSTAGRAM_ADMIN_IDS
 
 
 # # Admin for Instagram verification
@@ -47,8 +57,7 @@ ADMIN_USERNAME_2="@Uzbek\\_europe\\_admin"
 #                        999932510, 
 #                        8126290272]
 
-# Admin for Instagram verification
-INSTAGRAM_ADMIN_IDS = [8437026582, 122290051, 999932510]
+
 
 
 # Scoring System with time-based multipliers
