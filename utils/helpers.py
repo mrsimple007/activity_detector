@@ -305,7 +305,7 @@ def get_user_stats(user_id: int):
         invalid_referrals = referral_count - valid_referrals
         
         # Get user position - USE 30 DAYS for consistency with leaderboard
-        all_users = get_leaderboard(days=30, limit=None)
+        all_users = get_leaderboard(days=31, limit=None)
         
         # Filter admins
         filtered_users = [u for u in all_users if u.get('user_id') not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]]

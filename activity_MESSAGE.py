@@ -54,18 +54,19 @@ def generate_message(name):
 
     return (
         f"Assalomu aleykum, {escaped_name}\\! 👋\n\n"
-        "🎯 *Bugun kechgi 21:00 da biz navbatdagi quiz musobaqasini o'tkizamiz\\!*\n\n"
+        "🎯 *Bugun kechgi 21:00 da biz oxirgi quiz musobaqasini o'tkizamiz\\!*\n\n"
         "Albatta, g'oliblarga *pul mukofotlarimiz* va ushbu [konkursda](https://t\\.me/uzbek_europe/213) *qo'shimcha ballar* beramiz\\! 🔥\n\n"
         "📝 *Ishtirok etish uchun:*\n"
-        "1\\. @Muslimbek\\_01\\ kanaliga kiring\n"
+        "1\\. @Uzbek\\_europe kanaliga kiring\n"
         "2\\. Oxirgi postni toping\n"        
         "3\\. Kommentga \\+ belgisini yozing\n"
         "4\\. Biz sizni ishtirokchilar ro'yxatiga qo'shamiz\\!\n\n"
         "⏰ *Vaqt:* Bugun soat 21:00\n"
-        "🏆 *Mukofotlar:* Pul \\+ konkurs ballari\n\n"
+        "🏆 *Mukofotlar:* Konkurs ballari\n\n"
         "Ko'rishguncha\\! 🚀"
         "Botni boshlash uchun /start ni bosing\\."
     )
+
 
 
 async def send_message_safe(session, bot_token, chat_id, message):
@@ -209,7 +210,7 @@ async def main():
     if choice == "1":
         print(f"\n⚠️  WARNING: You are about to send a message to {len(users)} users!")
         confirm = input("Type 'YES' to confirm: ").strip()
-        if confirm == "YES":
+        if confirm == "YES" or 'yes':
             print("\n🚀 Starting broadcast...")
             await send_to_all_users()
         else:
