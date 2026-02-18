@@ -523,7 +523,7 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             # Show leaderboard - ONLY LAST 30 DAYS
             from datetime import datetime, timedelta, timezone
             
-            top_users_30 = get_leaderboard(days=31, limit=16)
+            top_users_30 = get_leaderboard(days=32, limit=16)
             top_users_30 = [u for u in top_users_30 if u.get('user_id') not in [ADMIN_USER_ID, ADMIN_USER_ID_EU, ADMIN_USER_ID_EU_2]][:15]
             
             # Calculate date range
