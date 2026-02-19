@@ -260,7 +260,8 @@ def get_user_stats(user_id: int):
         # Global statistics (not channel-specific)
         referral_points = 0
         quiz_points = 0
-        youtube_points = 0  # YouTube is global, not per-channel
+        youtube_points = 0
+        slides_points = 0 
         
         for row in result.data:
             points = row.get('points', 0)
@@ -284,7 +285,8 @@ def get_user_stats(user_id: int):
                 referral_points += points
             elif activity_type == 'youtube':
                 youtube_points += points
-            
+            elif activity_type == 'slides':
+                slides_points += points
             # Channel-specific activities
             if channel_id in stats_by_channel:
                 if activity_type == 'comment':
@@ -326,6 +328,7 @@ def get_user_stats(user_id: int):
             'referral_points': referral_points,
             'quiz_points': quiz_points,
             'youtube_points': youtube_points,
+            'slides_points': slides_points,
             'referral_count': referral_count,
             'referral_breakdown': {
                 'valid': valid_referrals,

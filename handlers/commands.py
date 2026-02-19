@@ -7,6 +7,7 @@ from telegram.helpers import escape_markdown
 
 from config import (
     INSTAGRAM_ADMIN_IDS,
+    POINTS_FOR_SLIDES,
     supabase, 
     ADMIN_USER_ID_EU,
     ADMIN_USER_ID_EU_2,
@@ -447,6 +448,9 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"🎯 *Quiz tuzish:*\n"
                 f"  • Har bir quiz: {POINTS_FOR_QUIZ} ball\n"
                 f"  • @SimpleQuizzer\\_bot orqali quiz yarating\\!\n\n"
+                f"🖥️ *Taqdimotlar, referat, mustaqil ish:*\n"
+                f"  • Har bir taqdimot: {POINTS_FOR_SLIDES} ball\n\n"
+                f"  • @Simple\\_presentation\\_maker\\_bot orqali yarating\\!\n\n"
                 f"👥 *Referal:*\n"
                 f"  • Har bir do'stingiz uchun siz: {POINTS_FOR_REFERRAL} ball\n"
                 f"  • Do'stingiz qo'shilgani uchun unga: {POINTS_FOR_JOINING} ball\n\n"
@@ -496,6 +500,7 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     f"🚀 Boost ballari: {muslimbek['boost_points']}\n\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"📺 YouTube ballari: {stats['youtube_points']}\n"
+                    f"🖥️ Taqdimot ballari: {stats['slides_points']}\n"
                     f"🎯 Quiz ballari: {stats['quiz_points']}\n"
                     f"👥 Referal ballari: {stats['referral_points']}\n"
                     f"🔗 Referal takliflar: {stats['referral_count']} ta\n"
