@@ -112,22 +112,22 @@ async def handle_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_early = hours_since_post <= EARLY_WINDOW_HOURS
     
     # Award points based on position AND time
-    if is_early:
-        if position == 1:
-            points = FIRST_COMMENT_POINTS
-            logger.info(f"🥇 FIRST COMMENT (early)! Awarding {points} points")
-        elif position == 2:
-            points = SECOND_COMMENT_POINTS
-            logger.info(f"🥈 SECOND COMMENT (early)! Awarding {points} points")
-        elif position == 3:
-            points = THIRD_COMMENT_POINTS
-            logger.info(f"🥉 THIRD COMMENT (early)! Awarding {points} points")
-        else:
-            points = OTHER_COMMENT_POINTS
-            logger.info(f"💬 Comment #{position} (early). Awarding {points} points")
+    if not is_early:
+        logger.info(f"⏰ Comment #{position} (late - {hours_since_post:.1f}h after post). No points awarded.")
+        return
+    
+    if position == 1:
+        points = FIRST_COMMENT_POINTS
+        logger.info(f"🥇 FIRST COMMENT (early)! Awarding {points} points")
+    elif position == 2:
+        points = SECOND_COMMENT_POINTS
+        logger.info(f"🥈 SECOND COMMENT (early)! Awarding {points} points")
+    elif position == 3:
+        points = THIRD_COMMENT_POINTS
+        logger.info(f"🥉 THIRD COMMENT (early)! Awarding {points} points")
     else:
-        points = POINTS_FOR_COMMENT_LATE
-        logger.info(f"⏰ Comment #{position} (late - {hours_since_post:.1f}h after post). Awarding {points} points")
+        points = OTHER_COMMENT_POINTS
+        logger.info(f"💬 Comment #{position} (early). Awarding {points} points")
     
     is_limited, adjusted_points = check_daily_limit(user.id, 'comment', points, channel_id=channel_id)
     if is_limited or adjusted_points == 0:
