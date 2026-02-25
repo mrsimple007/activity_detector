@@ -45,6 +45,7 @@ ADMIN_USERNAME_2="@Uzbek\\_europe\\_admin"
 # YouTube Points
 POINTS_FOR_YOUTUBE = 50
 YOUTUBE_MUSLIMBEK = "https://www.youtube.com/@MuslimbekAbdurakhimov"
+YOUTUBE_ABDUGANI="https://www.youtube.com/@aabazarov"
 
 # Reuse same admin IDs for YouTube approval
 YOUTUBE_ADMIN_IDS = INSTAGRAM_ADMIN_IDS

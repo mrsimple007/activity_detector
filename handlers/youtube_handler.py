@@ -8,6 +8,7 @@ from telegram import constants
 from config import (
     ADMIN_USERNAME,
     ADMIN_USERNAME_2,
+    YOUTUBE_ABDUGANI,
     supabase,
     POINTS_FOR_YOUTUBE,
     YOUTUBE_MUSLIMBEK,
@@ -33,13 +34,21 @@ async def show_youtube_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             .eq('channel_id', CHANNEL_ID_MUSLIMBEK)\
             .execute()
         
+        uzbek_europe_check = supabase.table('activity_log')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('activity_type', 'youtube')\
+            .eq('channel_id', CHANNEL_ID_UZBEK_EUROPE)\
+            .execute()
+        
         has_muslimbek = len(muslimbek_check.data) > 0
+        has_uzbek_europe = len(uzbek_europe_check.data) > 0
         
     except Exception as e:
         logger.error(f"❌ Error checking YouTube status: {e}")
         has_muslimbek = False
+        has_uzbek_europe = False
     
-    # Check pending requests
     try:
         pending_requests = supabase.table('youtube_requests')\
             .select('*')\
@@ -48,22 +57,26 @@ async def show_youtube_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             .execute()
         
         pending_muslimbek = any(r['channel_id'] == CHANNEL_ID_MUSLIMBEK for r in pending_requests.data)
+        pending_uzbek_europe = any(r['channel_id'] == CHANNEL_ID_UZBEK_EUROPE for r in pending_requests.data)
         
     except Exception as e:
         logger.error(f"❌ Error checking pending requests: {e}")
         pending_muslimbek = False
+        pending_uzbek_europe = False
     
-    # Build status text
     muslimbek_status = "✅ Ball olindi" if has_muslimbek else ("⏳ Kutilmoqda" if pending_muslimbek else f"🎁 {POINTS_FOR_YOUTUBE} ball")
+    uzbek_europe_status = "✅ Ball olindi" if has_uzbek_europe else ("⏳ Kutilmoqda" if pending_uzbek_europe else f"🎁 {POINTS_FOR_YOUTUBE} ball")
     
     text = (
         f"📺 *YOUTUBE ORQALI BALL YIGING\\!*\n\n"
-        f"Bizning YouTube kanaliga obuna bo'lib qo'shimcha ball oling\\!\n\n"
+        f"Bizning YouTube kanallariga obuna bo'lib qo'shimcha ball oling\\!\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
         f"🔖 *Muslimbek Abdurakhimov*\n"
         f"Status: {escape_markdown(muslimbek_status, version=2)}\n\n"
+        f"🔖 *Abdug'ani Bozarov*\n"
+        f"Status: {escape_markdown(uzbek_europe_status, version=2)}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"💰 *Ball:* {POINTS_FOR_YOUTUBE} ball\n\n"
+        f"💰 *Har bir kanal uchun:* {POINTS_FOR_YOUTUBE} ball\n\n"
         f"⚠️ *MUHIM:*\n"
         f"• Obuna bo'ling va skrinshot oling\n"
         f"• Skrinni {ADMIN_USERNAME} ga yuboring\n"
@@ -75,11 +88,16 @@ async def show_youtube_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     keyboard = []
     
-    # Add button only if not received and not pending
     if not has_muslimbek and not pending_muslimbek:
         keyboard.append([InlineKeyboardButton(
             "🔖 Muslimbek Abdurakhimov", 
             callback_data="youtube_muslimbek"
+        )])
+    
+    if not has_uzbek_europe and not pending_uzbek_europe:
+        keyboard.append([InlineKeyboardButton(
+            "🔖 Abdug'ani Bozarov", 
+            callback_data="youtube_uzbek_europe"
         )])
     
     keyboard.append([InlineKeyboardButton("◀️ Orqaga", callback_data="menu_participate")])
@@ -92,7 +110,6 @@ async def show_youtube_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_youtube_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle YouTube subscription request"""
     query = update.callback_query
     await query.answer()
     
@@ -101,11 +118,15 @@ async def handle_youtube_request(update: Update, context: ContextTypes.DEFAULT_T
     first_name = query.from_user.first_name
     last_name = query.from_user.last_name
     
-    # Only Muslimbek channel
-    channel_id = CHANNEL_ID_MUSLIMBEK
-    channel_name = "Muslimbek Abdurakhimov"
-    youtube_url = YOUTUBE_MUSLIMBEK
-    # Check if already received points
+    # Determine which channel based on callback
+    if query.data == "youtube_muslimbek":
+        channel_id = CHANNEL_ID_MUSLIMBEK
+        channel_name = "Muslimbek Abdurakhimov"
+        youtube_url = YOUTUBE_MUSLIMBEK
+    else:  # youtube_uzbek_europe
+        channel_id = CHANNEL_ID_UZBEK_EUROPE
+        channel_name = "Abdug'ani Bozarov"
+        youtube_url = YOUTUBE_ABDUGANI
     try:
         existing_points = supabase.table('activity_log')\
             .select('id')\

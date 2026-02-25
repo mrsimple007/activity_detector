@@ -42,11 +42,15 @@ ADMIN_USER_ID = ADMIN_USER_ID_EU
 def get_main_menu_keyboard():
     """Generate main menu keyboard"""
     keyboard = [
-        [InlineKeyboardButton("🎯 Ishtirok etish", callback_data="menu_participate")],
-        [InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")],
-        [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
-        [InlineKeyboardButton("📊 Batafsil ma'lumot", callback_data="show_webapp")],
-        [InlineKeyboardButton("📋 Qoidalar", callback_data="menu_rules")], 
+        [
+            InlineKeyboardButton("🎯 Ishtirok etish", callback_data="menu_participate"),
+            InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")
+        ],
+        [
+            InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard"),
+            InlineKeyboardButton("📊 Batafsil ma'lumot", callback_data="show_webapp")
+        ],
+        [InlineKeyboardButton("📋 Qoidalar", callback_data="menu_rules")],
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -54,11 +58,14 @@ def get_main_menu_keyboard():
 def get_leaderboard_keyboard():
     """Generate leaderboard menu keyboard"""
     keyboard = [
-        [InlineKeyboardButton("📊 Batafsil ma'lumot", callback_data="show_webapp")],
-        [InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")],
+        [
+            InlineKeyboardButton("📊 Batafsil ma'lumot", callback_data="show_webapp"),
+            InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")
+        ],
         [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
     ]
     return InlineKeyboardMarkup(keyboard)
+
 
 def get_participate_keyboard(user_id: int, bot_username: str):
     """Generate participate menu keyboard"""
@@ -75,29 +82,35 @@ def get_participate_keyboard(user_id: int, bot_username: str):
             InlineKeyboardButton("📱 Instagram", callback_data="instagram_menu"),
             InlineKeyboardButton("📺 YouTube", callback_data="youtube_menu")
         ],
-        [InlineKeyboardButton("🚀 Boost qilish", callback_data="boost_channel")],
         [
-            InlineKeyboardButton("👤 Profilim", callback_data="menu_profile"),
-            InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")
+            InlineKeyboardButton("🚀 Boost qilish", callback_data="boost_channel"),
+            InlineKeyboardButton("👤 Profilim", callback_data="menu_profile")
         ],
-        [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
+        [
+            InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard"),
+            InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
+
 
 def get_profile_keyboard(user_id: int, bot_username: str):
     """Generate profile menu keyboard with referral info button"""
     keyboard = [
-        [InlineKeyboardButton("📤 Referal ma'lumot", callback_data="show_referral_info")],
-        [InlineKeyboardButton("🚀 Boost qilish", callback_data="boost_channel")],
+        [
+            InlineKeyboardButton("📤 Referal ma'lumot", callback_data="show_referral_info"),
+            InlineKeyboardButton("🚀 Boost qilish", callback_data="boost_channel")
+        ],
         [
             InlineKeyboardButton("📱 Instagram", callback_data="instagram_menu"),
             InlineKeyboardButton("📺 YouTube", callback_data="youtube_menu")
         ],
-        [InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard")],
-        [InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")]
+        [
+            InlineKeyboardButton("🏆 Liderlar", callback_data="menu_leaderboard"),
+            InlineKeyboardButton("◀️ Orqaga", callback_data="menu_main")
+        ]
     ]
     return InlineKeyboardMarkup(keyboard)
-
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -154,7 +167,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=reply_markup
         )
         
-        await send_bot_promo(update, context, "both")
+        # await send_bot_promo(update, context, "both")
 
         # If coming from referral, send additional bonus message
         if referral_payload:
@@ -376,6 +389,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"*1 MILLION SO'MLIK* tanlov endilikda @Uzbek\\_Europe va @Muslimbek\\_01 tomonidan olib boriladi\\.\n\n"
         f"🎯 *Qanday ishtirok etish mumkin:*\n"
         f"• @SimpleQuizzer\\_bot orqali quizlar yarating\n"
+        f"• @SimplePresentation\\_maker\\_bot orqali taqdimotlar yarating\n"
         f"• Quizlarni yeching va ball to'plang\n"
         f"• Kanallarimizda aktiv bo'ling \\(komment, reaksiya, ulashish\\)\n"
         f"• Do'stlaringizni taklif qiling va ballar ishlang\n\n"
@@ -388,8 +402,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=constants.ParseMode.MARKDOWN_V2,
             reply_markup=get_main_menu_keyboard()
         )
-
-        await send_bot_promo(update, context, "both")
 
     except Exception as e:
         logger.error(f"❌ Error sending start message: {e}")
@@ -418,6 +430,7 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"Endilikda @Uzbek\\_Europe va @Muslimbek\\_01 tomonidan olib boriladi\\.\n\n"
                 f"🎯 *Qanday ishtirok etish:*\n"
                 f"• @SimpleQuizzer\\_bot orqali quizlar yarating\n"
+                f"• @SimplePresentation\\_maker\\_bot orqali taqdimotlar yarating\n"
                 f"• Kanallarimizda aktiv bo'ling \\(komment, reaksiya, ulashish\\)\n"
                 f"• Quizlarni yeching va ball to'plang\n"
                 f"• Do'stlaringizni taklif qiling\n\n"
@@ -658,8 +671,6 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=reply_markup
             )
 
-            await send_bot_promo(update, context, "slides")
-
 
         
         elif callback_data == "menu_rules":
@@ -698,7 +709,6 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 parse_mode=constants.ParseMode.MARKDOWN_V2,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-            await send_bot_promo(update, context, "quizzer")
 
 
 
@@ -1104,6 +1114,7 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
             f"*1 MILLION SO'MLIK* tanlov endilikda @Uzbek\\_Europe va @Muslimbek\\_01 tomonidan olib boriladi\\.\n\n"
             f"🎯 *Qanday ishtirok etish mumkin:*\n"
             f"• @SimpleQuizzer\\_bot orqali quizlar yarating\n"
+            f"• @SimplePresentation\\_maker\\_bot orqali taqdimotlar yarating\n"
             f"• Quizlarni yeching va ball to'plang\n"
             f"• Kanallarimizda aktiv bo'ling \\(komment, reaksiya, ulashish\\)\n"
             f"• Do'stlaringizni taklif qiling va ballar ishlang\n\n"
