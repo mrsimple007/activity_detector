@@ -95,10 +95,10 @@ MAX_DAILY_POINTS = {
 
 POINTS_FOR_BOOSTING=20
 
-POINTS_FOR_REFERRAL = 5  # Points for successful referral
+POINTS_FOR_REFERRAL = 8  # Points for successful referral
 POINTS_FOR_JOINING = 3    # Points for joining via referral
 
-MAX_REFERRALS_FOR_POINTS = 200
+MAX_REFERRALS_FOR_POINTS = 250
 POINTS_FOR_QUIZ = 5
 POINTS_FOR_SLIDES = 5
 
