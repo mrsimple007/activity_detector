@@ -681,16 +681,16 @@ async def handle_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 f"📝 *Kommentlar*\n"
                 f"Endilikda siz 2 ta kanal \\(@Muslimbek\\_01 va @Uzbek\\_europe\\) orqali:\n"
                 f"➡️ har bir kanaldan 25 balldan\n"
-                f"✅ jami 50 ball to'plashingiz mumkin\n\n"
+                f"✅ Kunlik jami 50 ball to'plashingiz mumkin\n\n"
                 f"👍 *Reaksiyalar*\n"
                 f"➡️ 2 ta kanal: 10 \\+ 10\n"
-                f"✅ jami 20 ball\n\n"
+                f"✅ Kunlik jami 20 ball\n\n"
                 f"📱 *Instagram obunalar:*\n"
                 f"➡️ Har bir sahifa uchun: 25 ball\n"
                 f"➡️ 2 ta sahifa: @\\_muslimbek\\_01 va @uzbek\\_german\n"
                 f"✅ jami 50 ball\n\n"
                 f"👥 *Referrallar uchun:*\n"
-                f"🔒 Maksimal limit — 200 ball\n\n"
+                f"🔒 Maksimal limit — 300 ball\n\n"
                 f"💣 *Boost uchun:*\n"
                 f"• Har bir boost uchun: 20 balldan beriladi va bu yerda ham limit yo'q\\!\n\n"
                 f"🧠 *Eng zo'r imkoniyat\\!*\n"
@@ -1335,11 +1335,18 @@ async def reset_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             logger.info(f"🕐 Archive timestamp: {timestamp}")
             
-            for idx, row in enumerate(result.data):
+            # Add archive_timestamp to all records
+            records_to_archive = []
+            for row in result.data:
                 row['archive_timestamp'] = timestamp
-                supabase.table('activity_log_archive').insert(row).execute()
-                if (idx + 1) % 100 == 0:
-                    logger.info(f"📤 Archived {idx + 1}/{record_count} records")
+                records_to_archive.append(row)
+            
+            # Batch upsert in chunks of 100 to avoid conflicts and improve performance
+            chunk_size = 100
+            for i in range(0, len(records_to_archive), chunk_size):
+                chunk = records_to_archive[i:i + chunk_size]
+                supabase.table('activity_log_archive').upsert(chunk, on_conflict='id').execute()
+                logger.info(f"📤 Archived {min(i + chunk_size, record_count)}/{record_count} records")
             
             logger.info(f"✅ All {record_count} records archived successfully")
             
@@ -1359,7 +1366,6 @@ async def reset_scores(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"❌ Error resetting scores: {e}")
         await update.message.reply_text(f"❌ An error occurred while resetting the log: {e}")
-
 
 async def send_bot_promo(update: Update, context: ContextTypes.DEFAULT_TYPE, promo_type: str):
     """Send bot promotion message if user is not in bot exclusion list"""
